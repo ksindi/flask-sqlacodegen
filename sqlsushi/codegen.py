@@ -400,7 +400,6 @@ class Relationship(object):
             text += '\n        '
             delimiter, end = ',\n        ', '\n    )'
         else:
-            # delimiter, end = ', ', ')'
             delimiter, end = ', ', self.backref() + ')'  # KS Edit
 
         args.extend([key + '=' + value for key, value in self.kwargs.items()])
@@ -452,8 +451,8 @@ class ManyToOneRelationship(Relationship):
         # If the two tables share more than one foreign key constraint,
         # SQLAlchemy needs an explicit primaryjoin to figure out which column(s) to join with
         common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
-        if len(common_fk_constraints) > 1:
-            self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
+        # if len(common_fk_constraints) > 1: KS Edit
+        self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
                                                                        constraint.elements[0].column.name)
     def backref_default_name(self):
         inflect_engine = inflect.engine()
