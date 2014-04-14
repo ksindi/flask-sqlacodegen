@@ -4,6 +4,7 @@ from collections import defaultdict
 from inspect import ArgSpec
 from keyword import iskeyword
 import inspect
+import inflect  # KS Edit
 import sys
 import re
 
@@ -26,6 +27,7 @@ _re_enum_check_constraint = re.compile(r"(?:(?:.*?)\.)?(.*?) IN \((.+)\)")
 _re_enum_item = re.compile(r"'(.*?)(?<!\\)'")
 _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 else r'(?u)\W')
 
+_backrefs = [] # KS Edit
 
 class _DummyInflectEngine(object):
     def singular_noun(self, noun):
@@ -144,7 +146,6 @@ def _render_column(column, show_name):
     if column.server_default:
         default_expr = _get_compiled_expression(column.server_default.arg)
         if '\n' in default_expr:
-            # in sqlautocode I wrote server_default='true' before nullable
             server_default = 'server_default=text("""\\\n{0}""")'.format(default_expr)
         else:
             server_default = 'server_default=text("{0}")'.format(default_expr)
@@ -192,7 +193,7 @@ def _render_index(index):
 class ImportCollector(OrderedDict):
     def add_import(self, obj):
         type_ = type(obj) if not isinstance(obj, type) else obj
-        pkgname = 'sqlalchemy' if type_.__name__ in sqlalchemy.__all__ else type_.__module__  # @UndefinedVariable
+        pkgname = 'sqlalchemy' if type_.__name__ in sqlalchemy.__all__ else type_.__module__
         self.add_literal_import(pkgname, type_.__name__)
 
     def add_literal_import(self, pkgname, name):
@@ -327,6 +328,7 @@ class ModelClass(Model):
 
         if any(isinstance(value, Relationship) for value in self.attributes.values()):
             collector.add_literal_import('sqlalchemy.orm', 'relationship')
+            collector.add_literal_import('sqlalchemy.orm', 'backref')  # KS Edit
 
         for child in self.children:
             child.add_imports(collector)
@@ -398,10 +400,30 @@ class Relationship(object):
             text += '\n        '
             delimiter, end = ',\n        ', '\n    )'
         else:
-            delimiter, end = ', ', ')'
+            # delimiter, end = ', ', ')'
+            delimiter, end = ', ', self.backref() + ')'  # KS Edit
 
         args.extend([key + '=' + value for key, value in self.kwargs.items()])
         return text + delimiter.join(args) + end
+    
+    def backref_default_name(self):
+        return self.source_cls.lower()
+
+    def make_backref(self):
+        backref = self.backref_default_name()
+        original_backref = backref
+        suffix = 0
+        while (self.target_cls, backref) in _backrefs:
+            print("WARNING: Backref %s already exists for relationship %s to %s.  Adding suffix..." 
+                % (backref, self.source_cls, self.target_cls))
+            backref = original_backref + str('_%s' % suffix)
+            suffix += 1
+
+        _backrefs.append((self.target_cls, backref))
+        return backref
+
+    def backref(self):
+        return ", backref=backref('" + self.make_backref() + "')"
 
 
 class ManyToOneRelationship(Relationship):
@@ -411,11 +433,9 @@ class ManyToOneRelationship(Relationship):
         colname = constraint.columns[0]
         tablename = constraint.elements[0].column.table.name
         if not colname.endswith('_id'):
-            # KS: changed to title case
-            self.preferred_name = inflect_engine.singular_noun(tablename).title() or tablename.title()
+            self.preferred_name = inflect_engine.singular_noun(tablename) or tablename
         else:
-            # KS: changed to title case
-            self.preferred_name = colname[:-3].title()
+            self.preferred_name = colname[:-3]
 
         # Add uselist=False to One-to-One relationships
         if any(isinstance(c, (PrimaryKeyConstraint, UniqueConstraint)) and
@@ -435,6 +455,12 @@ class ManyToOneRelationship(Relationship):
         if len(common_fk_constraints) > 1:
             self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
                                                                        constraint.elements[0].column.name)
+    def backref_default_name(self):
+        inflect_engine = inflect.engine()
+        return inflect_engine.plural_noun(self.source_cls.lower())
+
+    def backref(self):
+        return ", backref=backref('" + self.make_backref() + "')"
 
 
 class ManyToManyRelationship(Relationship):
@@ -461,6 +487,13 @@ class ManyToManyRelationship(Relationship):
                 repr('and_({0})'.format(', '.join(pri_joins))) if len(pri_joins) > 1 else repr(pri_joins[0]))
             self.kwargs['secondaryjoin'] = (
                 repr('and_({0})'.format(', '.join(sec_joins))) if len(sec_joins) > 1 else repr(sec_joins[0]))
+    
+    def backref_default_name(self):
+        inflect_engine = inflect.engine()
+        return inflect_engine.plural_noun(self.source_cls.lower())
+
+    def backref(self):
+        return ", backref=backref('" + self.make_backref() + "')"
 
 
 class CodeGenerator(object):

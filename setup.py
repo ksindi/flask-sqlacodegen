@@ -31,10 +31,10 @@ setup(
     name='sqlsushi',
     description='Automatic model code generator for SQLAlchemy',
     long_description=readme,
-    version=sqlacodegen.version,
+    version=sqlsushi.version,
     author='Kamil Sindi',
-    author_email='sqlacodegen@nextday.fi',
-    url='http://pypi.python.org/pypi/sqlacodegen/',
+    author_email='kysindi@gmail.com',
+    url='http://pypi.python.org/pypi/sqlsushi/',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
