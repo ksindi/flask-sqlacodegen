@@ -27,7 +27,7 @@ _re_enum_check_constraint = re.compile(r"(?:(?:.*?)\.)?(.*?) IN \((.+)\)")
 _re_enum_item = re.compile(r"'(.*?)(?<!\\)'")
 _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 else r'(?u)\W')
 
-_backrefs = [] # KS Edit
+_backrefs = []  # KS Edit
 
 class _DummyInflectEngine(object):
     def singular_noun(self, noun):
@@ -406,7 +406,7 @@ class Relationship(object):
         return text + delimiter.join(args) + end
     
     def backref_default_name(self):
-        return self.source_cls.lower()
+        return self.camelcase_to_underscore(self.source_cls)
 
     def make_backref(self):
         backref = self.backref_default_name()
@@ -423,6 +423,13 @@ class Relationship(object):
 
     def backref(self):
         return ", backref=backref('" + self.make_backref() + "')"
+    
+    def camelcase_to_underscore(self, name):
+        """Converts CamelCase to camel_case. 
+        See http://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-camel-case
+        """
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
 class ManyToOneRelationship(Relationship):
@@ -452,12 +459,17 @@ class ManyToOneRelationship(Relationship):
         # SQLAlchemy needs an explicit primaryjoin to figure out which column(s) to join with
         common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
         # if len(common_fk_constraints) > 1: KS Edit
-        self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
+        if len(constraint.elements) > 1:
+            self.kwargs['primaryjoin'] = "'and_(%s)'" % ', '.join(["%s.%s==%s.%s" % (source_cls,k.parent.name,target_cls,
+                                                                                   k.column.name)for k in constraint.elements])
+        else:
+            self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
                                                                        constraint.elements[0].column.name)
+            
     def backref_default_name(self):
         inflect_engine = inflect.engine()
-        return inflect_engine.plural_noun(self.source_cls.lower())
-
+        return inflect_engine.plural_noun(self.camelcase_to_underscore(self.source_cls))
+    
     def backref(self):
         return ", backref=backref('" + self.make_backref() + "')"
 
@@ -489,7 +501,7 @@ class ManyToManyRelationship(Relationship):
     
     def backref_default_name(self):
         inflect_engine = inflect.engine()
-        return inflect_engine.plural_noun(self.source_cls.lower())
+        return inflect_engine.plural_noun(self.camelcase_to_underscore(self.source_cls))
 
     def backref(self):
         return ", backref=backref('" + self.make_backref() + "')"
