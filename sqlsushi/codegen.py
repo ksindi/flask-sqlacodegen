@@ -4,7 +4,6 @@ from collections import defaultdict
 from inspect import ArgSpec
 from keyword import iskeyword
 import inspect
-import inflect  # KS Edit
 import sys
 import re
 
@@ -31,6 +30,8 @@ _backrefs = []  # KS Edit
 
 class _DummyInflectEngine(object):
     def singular_noun(self, noun):
+        return noun
+    def plural_noun(self, noun):
         return noun
 
 
@@ -184,6 +185,12 @@ def _render_constraint(constraint):
         columns = [repr(col.name) for col in constraint.columns]
         return 'UniqueConstraint({0})'.format(', '.join(columns))
 
+def _camelcase_to_underscore(self, name):
+        """Converts CamelCase to camel_case. 
+        See http://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-camel-case
+        """
+        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 def _render_index(index):
     columns = [repr(col.name) for col in index.columns]
@@ -279,11 +286,12 @@ class ModelTable(Model):
 class ModelClass(Model):
     parent_name = 'Base'
 
-    def __init__(self, table, association_tables, inflect_engine, detect_joined):
+    def __init__(self, table, association_tables, inflect_engine, detect_joined, allow_backrefs):
         super(ModelClass, self).__init__(table)
         self.name = self._tablename_to_classname(table.name, inflect_engine)
         self.children = []
         self.attributes = OrderedDict()
+        self.allow_backrefs = allow_backrefs
 
         # Assign attribute names for columns
         for column in table.columns:
@@ -305,7 +313,7 @@ class ModelClass(Model):
             fk_constraints = [c for c in association_table.constraints if isinstance(c, ForeignKeyConstraint)]
             fk_constraints.sort(key=_get_constraint_sort_key)
             target_cls = self._tablename_to_classname(fk_constraints[1].elements[0].column.table.name, inflect_engine)
-            relationship_ = ManyToManyRelationship(self.name, target_cls, association_table)
+            relationship_ = ManyToManyRelationship(self.name, target_cls, association_table, inflect_engine)
             self._add_attribute(relationship_.preferred_name, relationship_)
 
     @staticmethod
@@ -328,7 +336,8 @@ class ModelClass(Model):
 
         if any(isinstance(value, Relationship) for value in self.attributes.values()):
             collector.add_literal_import('sqlalchemy.orm', 'relationship')
-            collector.add_literal_import('sqlalchemy.orm', 'backref')  # KS Edit
+            if self.allow_backrefs:
+                collector.add_literal_import('sqlalchemy.orm', 'backref')  # KS Edit
 
         for child in self.children:
             child.add_imports(collector)
@@ -376,7 +385,7 @@ class ModelClass(Model):
             text += '\n'
         for attr, relationship in self.attributes.items():
             if isinstance(relationship, Relationship):
-                text += '    {0} = {1}\n'.format(attr, relationship.render())
+                text += '    {0} = {1}\n'.format(attr, relationship.render(self.allow_backrefs))
 
         # Render subclasses
         for child_class in self.children:
@@ -392,7 +401,7 @@ class Relationship(object):
         self.target_cls = target_cls
         self.kwargs = OrderedDict()
 
-    def render(self):
+    def render(self, allow_backrefs):
         text = 'relationship('
         args = [repr(self.target_cls)]
 
@@ -400,21 +409,22 @@ class Relationship(object):
             text += '\n        '
             delimiter, end = ',\n        ', '\n    )'
         else:
-            delimiter, end = ', ', self.backref() + ')'  # KS Edit
+            delimiter, end = ', ', ')'
+            if allow_backrefs:
+                end = self.backref() + ')' 
 
         args.extend([key + '=' + value for key, value in self.kwargs.items()])
         return text + delimiter.join(args) + end
     
     def backref_default_name(self):
-        return self.camelcase_to_underscore(self.source_cls)
+        return _camelcase_to_underscore(self.source_cls)
 
     def make_backref(self):
         backref = self.backref_default_name()
         original_backref = backref
+        # Check if backref already exists for relationship source_cls to target_cls and add suffix
         suffix = 0
         while (self.target_cls, backref) in _backrefs:
-            print("WARNING: Backref %s already exists for relationship %s to %s.  Adding suffix..." 
-                % (backref, self.source_cls, self.target_cls))
             backref = original_backref + str('_%s' % suffix)
             suffix += 1
 
@@ -422,15 +432,8 @@ class Relationship(object):
         return backref
 
     def backref(self):
-        return ", backref=backref('" + self.make_backref() + "')"
+        return ", backref='" + self.make_backref() + "'"
     
-    def camelcase_to_underscore(self, name):
-        """Converts CamelCase to camel_case. 
-        See http://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-camel-case
-        """
-        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
-
 
 class ManyToOneRelationship(Relationship):
     def __init__(self, source_cls, target_cls, constraint, inflect_engine):
@@ -442,6 +445,8 @@ class ManyToOneRelationship(Relationship):
             self.preferred_name = inflect_engine.singular_noun(tablename) or tablename
         else:
             self.preferred_name = colname[:-3]
+        
+        self.backref_name = inflect_engine.plural_noun(_camelcase_to_underscore(self.source_cls))
 
         # Add uselist=False to One-to-One relationships
         if any(isinstance(c, (PrimaryKeyConstraint, UniqueConstraint)) and
@@ -460,22 +465,18 @@ class ManyToOneRelationship(Relationship):
         common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
         # if len(common_fk_constraints) > 1: KS Edit
         if len(constraint.elements) > 1:
-            self.kwargs['primaryjoin'] = "'and_(%s)'" % ', '.join(["%s.%s==%s.%s" % (source_cls,k.parent.name,target_cls,
+            self.kwargs['primaryjoin'] = "'and_(%s)'" % ', '.join(["{0}.{1} == {2}.{3}".format(source_cls,k.parent.name,target_cls,
                                                                                    k.column.name)for k in constraint.elements])
         else:
             self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
                                                                        constraint.elements[0].column.name)
             
     def backref_default_name(self):
-        inflect_engine = inflect.engine()
-        return inflect_engine.plural_noun(self.camelcase_to_underscore(self.source_cls))
-    
-    def backref(self):
-        return ", backref=backref('" + self.make_backref() + "')"
+        return self.backref_name
 
 
 class ManyToManyRelationship(Relationship):
-    def __init__(self, source_cls, target_cls, assocation_table):
+    def __init__(self, source_cls, target_cls, assocation_table, inflect_engine):
         super(ManyToManyRelationship, self).__init__(source_cls, target_cls)
 
         self.kwargs['secondary'] = repr(assocation_table.name)
@@ -484,6 +485,8 @@ class ManyToManyRelationship(Relationship):
         colname = constraints[1].columns[0]
         tablename = constraints[1].elements[0].column.table.name
         self.preferred_name = tablename if not colname.endswith('_id') else colname[:-3] + 's'
+        
+        self.backref_name = inflect_engine.plural_noun(_camelcase_to_underscore(self.source_cls))
 
         # Handle self referential relationships
         if source_cls == target_cls:
@@ -500,18 +503,14 @@ class ManyToManyRelationship(Relationship):
                 repr('and_({0})'.format(', '.join(sec_joins))) if len(sec_joins) > 1 else repr(sec_joins[0]))
     
     def backref_default_name(self):
-        inflect_engine = inflect.engine()
-        return inflect_engine.plural_noun(self.camelcase_to_underscore(self.source_cls))
-
-    def backref(self):
-        return ", backref=backref('" + self.make_backref() + "')"
+        return self.backref_name
 
 
 class CodeGenerator(object):
     header = '# coding: utf-8'
     footer = ''
 
-    def __init__(self, metadata, noindexes=False, noconstraints=False, nojoined=False, noinflect=False):
+    def __init__(self, metadata, noindexes=False, noconstraints=False, nojoined=False, noinflect=False, nobackrefs=False):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -578,7 +577,7 @@ class CodeGenerator(object):
             if not table.primary_key or table.name in association_tables:
                 model = ModelTable(table)
             else:
-                model = ModelClass(table, links[table.name], inflect_engine, not nojoined)
+                model = ModelClass(table, links[table.name], inflect_engine, not nojoined, nobackrefs)
                 classes[model.name] = model
 
             self.models.append(model)
