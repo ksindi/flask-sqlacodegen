@@ -28,6 +28,7 @@ _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 
 
 _backrefs = []  # KS Edit
 
+
 class _DummyInflectEngine(object):
     def singular_noun(self, noun):
         return noun
@@ -145,6 +146,7 @@ def _render_column(column, show_name):
         column.index = True
         kwarg.append('index')
     if column.server_default:
+        # KS: should I just use 'server_default="true"'?
         default_expr = _get_compiled_expression(column.server_default.arg)
         if '\n' in default_expr:
             server_default = 'server_default=text("""\\\n{0}""")'.format(default_expr)
@@ -185,12 +187,12 @@ def _render_constraint(constraint):
         columns = [repr(col.name) for col in constraint.columns]
         return 'UniqueConstraint({0})'.format(', '.join(columns))
 
-def _camelcase_to_underscore(self, name):
-        """Converts CamelCase to camel_case. 
-        See http://stackoverflow.com/questions/1175208/elegant-python-function-to-convert-camelcase-to-camel-case
-        """
+
+def _camelcase_to_underscore(name):
+        """Converts CamelCase to camel_case. See http://stackoverflow.com/questions/1175208"""
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
 
 def _render_index(index):
     columns = [repr(col.name) for col in index.columns]
@@ -446,7 +448,7 @@ class ManyToOneRelationship(Relationship):
         else:
             self.preferred_name = colname[:-3]
         
-        self.backref_name = inflect_engine.plural_noun(_camelcase_to_underscore(self.source_cls))
+        self.backref_name = inflect_engine.plural_noun(_camelcase_to_underscore(source_cls))
 
         # Add uselist=False to One-to-One relationships
         if any(isinstance(c, (PrimaryKeyConstraint, UniqueConstraint)) and
@@ -465,7 +467,7 @@ class ManyToOneRelationship(Relationship):
         common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
         # if len(common_fk_constraints) > 1: KS Edit
         if len(constraint.elements) > 1:
-            self.kwargs['primaryjoin'] = "'and_(%s)'" % ', '.join(["{0}.{1} == {2}.{3}".format(source_cls,k.parent.name,target_cls,
+            self.kwargs['primaryjoin'] = "'and_(%s)'" % ', '.join(["{0}.{1} == {2}.{3}".format(source_cls, k.parent.name, target_cls,
                                                                                    k.column.name)for k in constraint.elements])
         else:
             self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
@@ -486,7 +488,7 @@ class ManyToManyRelationship(Relationship):
         tablename = constraints[1].elements[0].column.table.name
         self.preferred_name = tablename if not colname.endswith('_id') else colname[:-3] + 's'
         
-        self.backref_name = inflect_engine.plural_noun(_camelcase_to_underscore(self.source_cls))
+        self.backref_name = inflect_engine.plural_noun(_camelcase_to_underscore(source_cls))
 
         # Handle self referential relationships
         if source_cls == target_cls:
@@ -577,7 +579,7 @@ class CodeGenerator(object):
             if not table.primary_key or table.name in association_tables:
                 model = ModelTable(table)
             else:
-                model = ModelClass(table, links[table.name], inflect_engine, not nojoined, nobackrefs)
+                model = ModelClass(table, links[table.name], inflect_engine, not nojoined, not nobackrefs)
                 classes[model.name] = model
 
             self.models.append(model)
