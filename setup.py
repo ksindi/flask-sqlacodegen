@@ -4,7 +4,7 @@ import os.path
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 
-import sqlsushi
+import sqlacodegen
 
 
 class PyTest(TestCommand):
@@ -28,13 +28,13 @@ readme_path = os.path.join(here, 'README.rst')
 readme = open(readme_path).read()
 
 setup(
-    name='sqlsushi',
+    name='sqlacodegen',
     description='Automatic model code generator for SQLAlchemy',
     long_description=readme,
-    version=sqlsushi.version,
-    author='Kamil Sindi',
-    author_email='kysindi@gmail.com',
-    url='http://pypi.python.org/pypi/sqlsushi/',
+    version=sqlacodegen.version,
+    author='Alex Gronholm',
+    author_email='sqlacodegen@nextday.fi',
+    url='http://pypi.python.org/pypi/sqlacodegen/',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
@@ -61,7 +61,7 @@ setup(
     zip_safe=False,
     entry_points={
         'console_scripts': [
-            'sqlsushi=sqlsushi.main:main'
+            'sqlacodegen=sqlacodegen.main:main'
         ]
     }
 )

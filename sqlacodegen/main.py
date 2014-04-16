@@ -6,8 +6,8 @@ import sys
 from sqlalchemy.engine import create_engine
 from sqlalchemy.schema import MetaData
 
-from sqlsushi.codegen import CodeGenerator
-import sqlsushi
+from sqlacodegen.codegen import CodeGenerator
+import sqlacodegen
 
 
 def main():
@@ -27,7 +27,7 @@ def main():
     args = parser.parse_args()
 
     if args.version:
-        print(sqlsushi.version)
+        print(sqlacodegen.version)
         return
     if not args.url:
         print('You must supply a url\n', file=sys.stderr)
