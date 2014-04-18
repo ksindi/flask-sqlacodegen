@@ -22,6 +22,7 @@ def main():
     parser.add_argument('--nojoined', action='store_true', help="don't autodetect joined table inheritance")
     parser.add_argument('--noinflect', action='store_true', help="don't try to convert tables names to singular form")
     parser.add_argument('--nobackrefs', action='store_true', help="don't include backrefs")
+    parser.add_argument('--nomapperargs', action='store_true', help="don't include mapper args")
     parser.add_argument('--outfile', type=argparse.FileType('w'), default=sys.stdout,
                         help='file to write output to (default: stdout)')
     args = parser.parse_args()

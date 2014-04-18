@@ -404,6 +404,7 @@ class Relationship(object):
         self.source_cls = source_cls
         self.target_cls = target_cls
         self.kwargs = OrderedDict()
+        self.backref_name = _camelcase_to_underscore(source_cls) # KS Edit
 
     def render(self, allow_backrefs):
         text = 'relationship('
@@ -420,11 +421,8 @@ class Relationship(object):
         args.extend([key + '=' + value for key, value in self.kwargs.items()])
         return text + delimiter.join(args) + end
     
-    def backref_default_name(self):
-        return _camelcase_to_underscore(self.source_cls)
-
     def make_backref(self):
-        backref = self.backref_default_name()
+        backref = self.backref_name
         original_backref = backref
         # Check if backref already exists for relationship source_cls to target_cls and add suffix
         suffix = 0
@@ -450,7 +448,7 @@ class ManyToOneRelationship(Relationship):
         else:
             self.preferred_name = colname[:-3]
         
-        self.backref_name = inflect_engine.plural_noun(_camelcase_to_underscore(source_cls))
+        self.backref_name = inflect_engine.plural_noun(self.backref_name)
 
         # Add uselist=False to One-to-One relationships
         if any(isinstance(c, (PrimaryKeyConstraint, UniqueConstraint)) and
@@ -467,16 +465,12 @@ class ManyToOneRelationship(Relationship):
         # If the two tables share more than one foreign key constraint,
         # SQLAlchemy needs an explicit primaryjoin to figure out which column(s) to join with
         common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
-        # if len(common_fk_constraints) > 1: KS Edit
-        if len(constraint.elements) > 1:
+        if len(common_fk_constraints) > 1 or len(constraint.elements) > 1:
             self.kwargs['primaryjoin'] = "'and_(%s)'" % ', '.join(["{0}.{1} == {2}.{3}".format(source_cls, k.parent.name, target_cls,
                                                                                    k.column.name)for k in constraint.elements])
         else:
             self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
                                                                        constraint.elements[0].column.name)
-            
-    def backref_default_name(self):
-        return self.backref_name
 
 
 class ManyToManyRelationship(Relationship):
@@ -490,7 +484,7 @@ class ManyToManyRelationship(Relationship):
         tablename = constraints[1].elements[0].column.table.name
         self.preferred_name = tablename if not colname.endswith('_id') else colname[:-3] + 's'
         
-        self.backref_name = inflect_engine.plural_noun(_camelcase_to_underscore(source_cls))
+        self.backref_name = inflect_engine.plural_noun(self.backref_name)
 
         # Handle self referential relationships
         if source_cls == target_cls:
@@ -505,9 +499,6 @@ class ManyToManyRelationship(Relationship):
                 repr('and_({0})'.format(', '.join(pri_joins))) if len(pri_joins) > 1 else repr(pri_joins[0]))
             self.kwargs['secondaryjoin'] = (
                 repr('and_({0})'.format(', '.join(sec_joins))) if len(sec_joins) > 1 else repr(sec_joins[0]))
-    
-    def backref_default_name(self):
-        return self.backref_name
 
 
 class CodeGenerator(object):
