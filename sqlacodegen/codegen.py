@@ -35,7 +35,7 @@ class _DummyInflectEngine(object):
     def plural_noun(self, noun):
         import inflect
         inflect_engine = inflect.engine()
-        return inflect_engine.plural_noun(inflect_engine.plural_noun)
+        return inflect_engine.plural_noun(noun)
 
 
 def _convert_to_valid_identifier(name):
