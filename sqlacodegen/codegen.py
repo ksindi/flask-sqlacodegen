@@ -3,7 +3,6 @@ from __future__ import unicode_literals, division, print_function, absolute_impo
 from collections import defaultdict
 from inspect import ArgSpec
 from keyword import iskeyword
-import itertools
 import inspect
 import sys
 import re
@@ -195,15 +194,26 @@ def _camelcase_to_underscore(name):
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
-def _resolve_relationship_backref(relationship, visited, classes):
+
+def _is_model_decendant(A, B):
+    """Check to see if model class A inherits from another model class B"""
+    if A.name == B.name:
+        return True
+    if not B.children:
+        return False
+    return any(_is_model_decendant(A, b) for b in B.children)
+
+
+def _resolve_relationship_backref(relationship, rels, classes):
     """Get rid of any relationship inheritance conflicts"""
     original_backref = relationship.kwargs['backref']
-    for y in visited:
-        if all('backref' in k.kwargs for k in [relationship, y]):
-            if issubclass(classes[relationship.target_cls].__class__, classes[y.target_cls].__class__):
-                relationship.kwargs['backref'] = original_backref + repr('_' + relationship.target_cls.lower())
-            if issubclass(classes[y.target_cls].__class__, classes[relationship.target_cls].__class__):
-                y.kwargs['backref'] = original_backref + repr(+ y.target_cls.lower())
+    for x in rels:
+        if all('backref' in k.kwargs for k in [relationship, x]):
+            if _is_model_decendant(classes[relationship.target_cls], classes[x.target_cls]):
+                relationship.kwargs['backref'] = repr(relationship.target_cls.lower() + '_' + eval(original_backref))
+            if _is_model_decendant(classes[x.target_cls], classes[relationship.target_cls]):
+                x.kwargs['backref'] = repr(x.target_cls.lower() + '_' + eval(original_backref))
+
 
 def _render_index(index):
     columns = [repr(col.name) for col in index.columns]
@@ -581,21 +591,22 @@ class CodeGenerator(object):
             model.add_imports(self.collector)
 
         # Nest inherited classes in their superclasses to ensure proper ordering
-        # Check backrefs option
         for model in classes.values():
             if model.parent_name != 'Base':
                 classes[model.parent_name].children.append(model)
                 self.models.remove(model)
             
-            # if backrefs are allowed
-            if not nobackrefs:
+        
+        # If backrefs are allowed. Resolve any relationships confilicts where one
+        # target class might ingerit from another
+        if not nobackrefs:
+            for model in classes.values():
                 self.collector.add_literal_import('sqlalchemy.orm', 'backref')
                 _visited = []
                 for relationship in model.attributes.values():
                     if isinstance(relationship, Relationship):
                         relationship.kwargs['backref'] = repr(relationship.make_backref())
-                        if _visited:
-                            _resolve_relationship_backref(relationship, _visited, classes)
+                        _resolve_relationship_backref(relationship, _visited, classes)
                         _visited.append(relationship)
                 
 
