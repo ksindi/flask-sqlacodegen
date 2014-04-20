@@ -195,15 +195,15 @@ def _camelcase_to_underscore(name):
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
-def _resolve_relationsip_backref(relationship, visited, classes):
-    # get rid of any relationship conflicts
+def _resolve_relationship_backref(relationship, visited, classes):
+    """Get rid of any relationship inheritance conflicts"""
     original_backref = relationship.kwargs['backref']
     for y in visited:
         if all('backref' in k.kwargs for k in [relationship, y]):
             if issubclass(classes[relationship.target_cls].__class__, classes[y.target_cls].__class__):
-                relationship.kwargs['backref'] = repr(original_backref + '_' + relationship.target_cls.lower())
+                relationship.kwargs['backref'] = original_backref + repr('_' + relationship.target_cls.lower())
             if issubclass(classes[y.target_cls].__class__, classes[relationship.target_cls].__class__):
-                y.kwargs['backref'] = repr(original_backref + '_' + y.target_cls.lower())
+                y.kwargs['backref'] = original_backref + repr(+ y.target_cls.lower())
 
 def _render_index(index):
     columns = [repr(col.name) for col in index.columns]
@@ -581,6 +581,7 @@ class CodeGenerator(object):
             model.add_imports(self.collector)
 
         # Nest inherited classes in their superclasses to ensure proper ordering
+        # Check backrefs option
         for model in classes.values():
             if model.parent_name != 'Base':
                 classes[model.parent_name].children.append(model)
@@ -592,8 +593,9 @@ class CodeGenerator(object):
                 _visited = []
                 for relationship in model.attributes.values():
                     if isinstance(relationship, Relationship):
-                        relationship.kwargs['backref'] = relationship.make_backref()
-                        _resolve_relationsip_backref(relationship, _visited, classes)
+                        relationship.kwargs['backref'] = repr(relationship.make_backref())
+                        if _visited:
+                            _resolve_relationship_backref(relationship, _visited, classes)
                         _visited.append(relationship)
                 
 
