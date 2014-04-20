@@ -3,6 +3,7 @@ from __future__ import unicode_literals, division, print_function, absolute_impo
 from collections import defaultdict
 from inspect import ArgSpec
 from keyword import iskeyword
+import itertools
 import inspect
 import sys
 import re
@@ -26,7 +27,7 @@ _re_enum_check_constraint = re.compile(r"(?:(?:.*?)\.)?(.*?) IN \((.+)\)")
 _re_enum_item = re.compile(r"'(.*?)(?<!\\)'")
 _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 else r'(?u)\W')
 
-_backrefs = []  # KS Edit
+_backrefs = []
 
 
 class _DummyInflectEngine(object):
@@ -148,7 +149,6 @@ def _render_column(column, show_name):
         column.index = True
         kwarg.append('index')
     if column.server_default:
-        # KS: should I just use 'server_default="true"'?
         default_expr = _get_compiled_expression(column.server_default.arg)
         if '\n' in default_expr:
             server_default = 'server_default=text("""\\\n{0}""")'.format(default_expr)
@@ -195,6 +195,15 @@ def _camelcase_to_underscore(name):
         s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
+def _resolve_relationsip_backref(relationship, visited, classes):
+    # get rid of any relationship conflicts
+    original_backref = relationship.kwargs['backref']
+    for y in visited:
+        if all('backref' in k.kwargs for k in [relationship, y]):
+            if issubclass(classes[relationship.target_cls].__class__, classes[y.target_cls].__class__):
+                relationship.kwargs['backref'] = repr(original_backref + '_' + relationship.target_cls.lower())
+            if issubclass(classes[y.target_cls].__class__, classes[relationship.target_cls].__class__):
+                y.kwargs['backref'] = repr(original_backref + '_' + y.target_cls.lower())
 
 def _render_index(index):
     columns = [repr(col.name) for col in index.columns]
@@ -290,12 +299,11 @@ class ModelTable(Model):
 class ModelClass(Model):
     parent_name = 'Base'
 
-    def __init__(self, table, association_tables, inflect_engine, detect_joined, allow_backrefs):
+    def __init__(self, table, association_tables, inflect_engine, detect_joined):
         super(ModelClass, self).__init__(table)
         self.name = self._tablename_to_classname(table.name, inflect_engine)
         self.children = []
         self.attributes = OrderedDict()
-        self.allow_backrefs = allow_backrefs
 
         # Assign attribute names for columns
         for column in table.columns:
@@ -340,8 +348,6 @@ class ModelClass(Model):
 
         if any(isinstance(value, Relationship) for value in self.attributes.values()):
             collector.add_literal_import('sqlalchemy.orm', 'relationship')
-            if self.allow_backrefs:
-                collector.add_literal_import('sqlalchemy.orm', 'backref')  # KS Edit
 
         for child in self.children:
             child.add_imports(collector)
@@ -376,7 +382,7 @@ class ModelClass(Model):
             if len(table_args) == 1:
                 table_args[0] += ','
             text += '    __table_args__ = (\n        {0}\n    )\n'.format(',\n        '.join(table_args))
-
+        
         # Render columns
         text += '\n'
         for attr, column in self.attributes.items():
@@ -389,7 +395,7 @@ class ModelClass(Model):
             text += '\n'
         for attr, relationship in self.attributes.items():
             if isinstance(relationship, Relationship):
-                text += '    {0} = {1}\n'.format(attr, relationship.render(self.allow_backrefs))
+                text += '    {0} = {1}\n'.format(attr, relationship.render())
 
         # Render subclasses
         for child_class in self.children:
@@ -404,9 +410,9 @@ class Relationship(object):
         self.source_cls = source_cls
         self.target_cls = target_cls
         self.kwargs = OrderedDict()
-        self.backref_name = _camelcase_to_underscore(source_cls) # KS Edit
+        self.backref_name = _camelcase_to_underscore(source_cls)
 
-    def render(self, allow_backrefs):
+    def render(self):
         text = 'relationship('
         args = [repr(self.target_cls)]
 
@@ -415,8 +421,6 @@ class Relationship(object):
             delimiter, end = ',\n        ', '\n    )'
         else:
             delimiter, end = ', ', ')'
-            if allow_backrefs:
-                end = self.backref() + ')' 
 
         args.extend([key + '=' + value for key, value in self.kwargs.items()])
         return text + delimiter.join(args) + end
@@ -427,14 +431,11 @@ class Relationship(object):
         # Check if backref already exists for relationship source_cls to target_cls and add suffix
         suffix = 0
         while (self.target_cls, backref) in _backrefs:
-            backref = original_backref + str('_%s' % suffix)
+            backref = original_backref + str('_{0}'.format(suffix))
             suffix += 1
 
         _backrefs.append((self.target_cls, backref))
         return backref
-
-    def backref(self):
-        return ", backref='" + self.make_backref() + "'"
     
 
 class ManyToOneRelationship(Relationship):
@@ -464,10 +465,10 @@ class ManyToOneRelationship(Relationship):
 
         # If the two tables share more than one foreign key constraint,
         # SQLAlchemy needs an explicit primaryjoin to figure out which column(s) to join with
-        common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
-        if len(common_fk_constraints) > 1 or len(constraint.elements) > 1:
-            self.kwargs['primaryjoin'] = "'and_(%s)'" % ', '.join(["{0}.{1} == {2}.{3}".format(source_cls, k.parent.name, target_cls,
-                                                                                   k.column.name)for k in constraint.elements])
+        # common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
+        if len(constraint.elements) > 1:  #  or 
+            self.kwargs['primaryjoin'] = "'and_({0})'".format(', '.join(['{0}.{1} == {2}.{3}'.format(source_cls, k.parent.name, target_cls, k.column.name)
+                        for k in constraint.elements]))
         else:
             self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
                                                                        constraint.elements[0].column.name)
@@ -477,7 +478,7 @@ class ManyToManyRelationship(Relationship):
     def __init__(self, source_cls, target_cls, assocation_table, inflect_engine):
         super(ManyToManyRelationship, self).__init__(source_cls, target_cls)
 
-        self.kwargs['secondary'] = repr(assocation_table.name)
+        self.kwargs['secondary'] = repr(assocation_table.schema + '.' + assocation_table.name)
         constraints = [c for c in assocation_table.constraints if isinstance(c, ForeignKeyConstraint)]
         constraints.sort(key=_get_constraint_sort_key)
         colname = constraints[1].columns[0]
@@ -519,8 +520,9 @@ class CodeGenerator(object):
         association_tables = set()
         for table in metadata.tables.values():
             # Link tables have exactly two foreign key constraints and all columns are involved in them
+            # (except for default columns like id, inserted, and updated)
             fk_constraints = [constr for constr in table.constraints if isinstance(constr, ForeignKeyConstraint)]
-            if len(fk_constraints) == 2 and all(col.foreign_keys for col in table.columns):
+            if len(fk_constraints) == 2 and all(col.foreign_keys for col in table.columns if col.name not in ['id', 'inserted', 'updated']):
                 association_tables.add(table.name)
                 tablename = sorted(fk_constraints, key=_get_constraint_sort_key)[0].elements[0].column.table.name
                 links[tablename].append(table)
@@ -572,7 +574,7 @@ class CodeGenerator(object):
             if not table.primary_key or table.name in association_tables:
                 model = ModelTable(table)
             else:
-                model = ModelClass(table, links[table.name], inflect_engine, not nojoined, not nobackrefs)
+                model = ModelClass(table, links[table.name], inflect_engine, not nojoined)
                 classes[model.name] = model
 
             self.models.append(model)
@@ -583,6 +585,17 @@ class CodeGenerator(object):
             if model.parent_name != 'Base':
                 classes[model.parent_name].children.append(model)
                 self.models.remove(model)
+            
+            # if backrefs are allowed
+            if not nobackrefs:
+                self.collector.add_literal_import('sqlalchemy.orm', 'backref')
+                _visited = []
+                for relationship in model.attributes.values():
+                    if isinstance(relationship, Relationship):
+                        relationship.kwargs['backref'] = relationship.make_backref()
+                        _resolve_relationsip_backref(relationship, _visited, classes)
+                        _visited.append(relationship)
+                
 
         # Add either the MetaData or declarative_base import depending on whether there are mapped classes or not
         if not any(isinstance(model, ModelClass) for model in self.models):
