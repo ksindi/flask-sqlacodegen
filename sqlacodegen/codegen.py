@@ -193,24 +193,23 @@ def _camelcase_to_underscore(name):
         return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
 
-def _is_model_decendant(model_a, model_b):
+def _is_model_descendant(model_a, model_b):
     """Check to see if model class A inherits from another model class B"""
     if model_a.name == model_b.name:
         return True
     if not model_b.children:
         return False
-    return any(_is_model_decendant(model_a, b) for b in model_b.children)
+    return any(_is_model_descendant(model_a, b) for b in model_b.children)
 
 
 def _resolve_relationship_backref(relationship, rels, classes):
     """Get rid of any relationship inheritance conflicts"""
-    original_backref = relationship.kwargs['backref']
-    for x in rels:
-        if all('backref' in k.kwargs for k in [relationship, x]):
-            if _is_model_decendant(classes[relationship.target_cls], classes[x.target_cls]):
-                relationship.kwargs['backref'] = repr(relationship.target_cls.lower() + '_' + original_backref)
-            if _is_model_decendant(classes[x.target_cls], classes[relationship.target_cls]):
-                x.kwargs['backref'] = repr(x.target_cls.lower() + '_' + original_backref)
+    original_backref = relationship.backref_name
+    for x in [y for y in rels if 'backref' in y]:
+        if _is_model_descendant(classes[relationship.target_cls], classes[x.target_cls]):
+            relationship.backref_name = relationship.target_cls.lower() + '_' + original_backref
+        if _is_model_descendant(classes[x.target_cls], classes[relationship.target_cls]):
+            relationship.backref_name = x.target_cls.lower() + '_' + original_backref
 
 
 def _render_index(index):
@@ -418,7 +417,7 @@ class Relationship(object):
         self.source_cls = source_cls
         self.target_cls = target_cls
         self.kwargs = OrderedDict()
-        self.backref_name = _camelcase_to_underscore(source_cls)
+        self.backref_name = _camelcase_to_underscore(self.source_cls)
 
     def render(self):
         text = 'relationship('
@@ -433,16 +432,26 @@ class Relationship(object):
         args.extend([key + '=' + value for key, value in self.kwargs.items()])
         return text + delimiter.join(args) + end
     
-    def make_backref(self, _backrefs):
+    def make_backref(self, relationships, classes):
         backref = self.backref_name
         original_backref = backref
         # Check if backref already exists for relationship source_cls to target_cls and add suffix
         suffix = 0
-        while (self.target_cls, backref) in _backrefs:
+        while (self.target_cls, backref) in [(x.target_cls, x.backref_name) for x in relationships]:
             backref = original_backref + str('_{0}'.format(suffix))
             suffix += 1
-
-        return backref
+        
+        self.kwargs['backref'] =  "backref({0}, lazy='dynamic')".format(repr(backref))
+        # Check if any of the target_cls inherit from other target_cls
+        # If so, modify backref name of descendant
+        for x in [y for y in relationships if 'backref' in y.kwargs]:
+            if _is_model_descendant(classes[self.target_cls], classes[x.target_cls]):
+                self.backref_name = self.target_cls.lower() + '_' + backref
+                self.kwargs['backref'] = "backref({0}, lazy='dynamic')".format(repr(self.backref_name))
+            if _is_model_descendant(classes[x.target_cls], classes[self.target_cls]):
+                backref = x.backref_name
+                x.backref_name = x.target_cls.lower() + '_' + backref
+                x.kwargs['backref'] = "backref({0}, lazy='dynamic')".format(repr(x.backref_name))
 
 
 class ManyToOneRelationship(Relationship):
@@ -488,7 +497,7 @@ class ManyToManyRelationship(Relationship):
         self.kwargs['secondary'] = repr(assocation_table.schema + '.' + assocation_table.name)
         constraints = [c for c in assocation_table.constraints if isinstance(c, ForeignKeyConstraint)]
         constraints.sort(key=_get_constraint_sort_key)
-        colname = constraints[1].columns[0]
+        colname = constraints[1].columns[0] 
         tablename = constraints[1].elements[0].column.table.name
         self.preferred_name = tablename if not colname.endswith('_id') else colname[:-3] + 's'
         
@@ -600,19 +609,14 @@ class CodeGenerator(object):
         # If backrefs are allowed. Resolve any relationships confilicts where one
         # target class might ingerit from another
         if not nobackrefs:
-            _backrefs = []
             for model in classes.values():
                 self.collector.add_literal_import('sqlalchemy.orm', 'backref')
-                _visited = []
+                visited = []
                 for relationship in model.attributes.values():
                     if isinstance(relationship, Relationship):
-                        backref = relationship.make_backref(_backrefs)
-                        _backrefs.append((relationship.target_cls, backref))
-                        relationship.kwargs['backref'] = "backref({0}, lazy='dynamic')".format(repr(backref)) 
+                        relationship.make_backref(visited, classes)
+                        visited.append(relationship)
                         
-                        _resolve_relationship_backref(relationship, _visited, classes)
-                        _visited.append(relationship)
-                
 
         # Add either the MetaData or declarative_base import depending on whether there are mapped classes or not
         if not any(isinstance(model, ModelClass) for model in self.models):
