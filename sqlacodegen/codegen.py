@@ -202,16 +202,6 @@ def _is_model_descendant(model_a, model_b):
     return any(_is_model_descendant(model_a, b) for b in model_b.children)
 
 
-def _resolve_relationship_backref(relationship, rels, classes):
-    """Get rid of any relationship inheritance conflicts"""
-    original_backref = relationship.backref_name
-    for x in [y for y in rels if 'backref' in y]:
-        if _is_model_descendant(classes[relationship.target_cls], classes[x.target_cls]):
-            relationship.backref_name = relationship.target_cls.lower() + '_' + original_backref
-        if _is_model_descendant(classes[x.target_cls], classes[relationship.target_cls]):
-            relationship.backref_name = x.target_cls.lower() + '_' + original_backref
-
-
 def _render_index(index):
     columns = [repr(col.name) for col in index.columns]
     return 'Index({0!r}, {1})'.format(index.name, ', '.join(columns))
@@ -409,7 +399,7 @@ class ModelClass(Model):
             text += '\n\n' + child_class.render()
 
         return text
-
+    
 
 class Relationship(object):
     def __init__(self, source_cls, target_cls):
@@ -446,13 +436,14 @@ class Relationship(object):
         # If so, modify backref name of descendant
         # "backref({0}, lazy='dynamic')".format(repr(backref))
         for rel in [x for x in relationships if 'backref' in x.kwargs]:
-            if _is_model_descendant(classes[self.target_cls], classes[rel.target_cls]):
-                self.backref_name = self.target_cls.lower() + '_' + backref
-                self.kwargs['backref'] = repr(self.backref_name)
-            if _is_model_descendant(classes[rel.target_cls], classes[self.target_cls]):
-                backref = rel.backref_name
-                rel.backref_name = rel.target_cls.lower() + '_' + backref
-                rel.kwargs['backref'] = repr(rel.backref_name)
+            if self.target_cls in classes and rel.target_cls in classes:
+                if _is_model_descendant(classes[self.target_cls], classes[rel.target_cls]):
+                    self.backref_name = self.target_cls.lower() + '_' + backref
+                    self.kwargs['backref'] = repr(self.backref_name)
+                if _is_model_descendant(classes[rel.target_cls], classes[self.target_cls]):
+                    backref = rel.backref_name
+                    rel.backref_name = rel.target_cls.lower() + '_' + backref
+                    rel.kwargs['backref'] = repr(rel.backref_name)
 
 
 class ManyToOneRelationship(Relationship):
@@ -521,7 +512,7 @@ class CodeGenerator(object):
     header = '# coding: utf-8'
     footer = ''
 
-    def __init__(self, metadata, noindexes=False, noconstraints=False, nojoined=False, noinflect=False, nobackrefs=False):
+    def __init__(self, metadata, noindexes=False, noconstraints=False, nojoined=False, noinflect=False, nobackrefs=False, withflask=False):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -530,9 +521,9 @@ class CodeGenerator(object):
             import inflect
             inflect_engine = inflect.engine()
         
-        # special columns: every table, including association tables, has them
-        _special_column_names = ['id', 'inserted', 'updated']
-
+        _special_columns = ['id', 'inserted', 'updated']
+        self._withflask = withflask
+        
         # Pick association tables from the metadata into their own set, don't process them normally
         links = defaultdict(lambda: [])
         association_tables = set()
@@ -540,7 +531,7 @@ class CodeGenerator(object):
             # Link tables have exactly two foreign key constraints and all columns are involved in them
             # except for special columns like id, inserted, and updated
             fk_constraints = [constr for constr in table.constraints if isinstance(constr, ForeignKeyConstraint)]
-            if len(fk_constraints) == 2 and all(col.foreign_keys for col in table.columns if col.name not in _special_column_names):
+            if len(fk_constraints) == 2 and all(col.foreign_keys for col in table.columns if col.name not in _special_columns):
                 association_tables.add(table.name)
                 tablename = sorted(fk_constraints, key=_get_constraint_sort_key)[0].elements[0].column.table.name
                 links[tablename].append(table)
@@ -615,25 +606,34 @@ class CodeGenerator(object):
                     if isinstance(relationship, Relationship):
                         relationship.make_backref(visited, classes)
                         visited.append(relationship)
-                        
-
-        # Add either the MetaData or declarative_base import depending on whether there are mapped classes or not
-        if not any(isinstance(model, ModelClass) for model in self.models):
-            self.collector.add_literal_import('sqlalchemy', 'MetaData')
+        
+        # Add Flask-SQLAlchemy support
+        if self._withflask:
+            self.collector.add_literal_import('flask.ext.sqlalchemy', 'declarative_base')
+            for model in classes.values():
+                if model.parent_name == 'Base':
+                    model.parent_name = 'db.Model'
         else:
-            self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
+            # Add either the MetaData or declarative_base import depending on whether there are mapped classes or not
+            if not any(isinstance(model, ModelClass) for model in self.models):
+                self.collector.add_literal_import('sqlalchemy', 'MetaData')
+            else:
+                self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
 
     def render(self, outfile=sys.stdout):
         print(self.header, file=outfile)
 
         # Render the collected imports
         print(self.collector.render() + '\n\n', file=outfile)
-
-        if any(isinstance(model, ModelClass) for model in self.models):
-            print('Base = declarative_base()\nmetadata = Base.metadata', file=outfile)
+        
+        if self._withflask:
+            print('db = SQLAlchemy()', file=outfile)
         else:
-            print('metadata = MetaData()', file=outfile)
-
+            if any(isinstance(model, ModelClass) for model in self.models):
+                print('Base = declarative_base()\nmetadata = Base.metadata', file=outfile)
+            else:
+                print('metadata = MetaData()', file=outfile)
+        
         # Render the model tables and classes
         for model in self.models:
             print('\n\n' + model.render().rstrip('\n'), file=outfile)
