@@ -30,7 +30,7 @@ _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 
 class _DummyInflectEngine(object):
     def singular_noun(self, noun):
         return noun
-    def plural_noun(self, noun): # needed for backrefs
+    def plural_noun(self, noun):  # needed for backrefs
         import inflect
         inflect_engine = inflect.engine()
         return inflect_engine.plural_noun(noun)
@@ -441,17 +441,18 @@ class Relationship(object):
             backref = original_backref + str('_{0}'.format(suffix))
             suffix += 1
         
-        self.kwargs['backref'] =  "backref({0}, lazy='dynamic')".format(repr(backref))
+        self.kwargs['backref'] = repr(backref) 
         # Check if any of the target_cls inherit from other target_cls
         # If so, modify backref name of descendant
-        for x in [y for y in relationships if 'backref' in y.kwargs]:
-            if _is_model_descendant(classes[self.target_cls], classes[x.target_cls]):
+        # "backref({0}, lazy='dynamic')".format(repr(backref))
+        for rel in [x for x in relationships if 'backref' in x.kwargs]:
+            if _is_model_descendant(classes[self.target_cls], classes[rel.target_cls]):
                 self.backref_name = self.target_cls.lower() + '_' + backref
-                self.kwargs['backref'] = "backref({0}, lazy='dynamic')".format(repr(self.backref_name))
-            if _is_model_descendant(classes[x.target_cls], classes[self.target_cls]):
-                backref = x.backref_name
-                x.backref_name = x.target_cls.lower() + '_' + backref
-                x.kwargs['backref'] = "backref({0}, lazy='dynamic')".format(repr(x.backref_name))
+                self.kwargs['backref'] = repr(self.backref_name)
+            if _is_model_descendant(classes[rel.target_cls], classes[self.target_cls]):
+                backref = rel.backref_name
+                rel.backref_name = rel.target_cls.lower() + '_' + backref
+                rel.kwargs['backref'] = repr(rel.backref_name)
 
 
 class ManyToOneRelationship(Relationship):
@@ -464,7 +465,6 @@ class ManyToOneRelationship(Relationship):
             self.preferred_name = inflect_engine.singular_noun(tablename) or tablename
         else:
             self.preferred_name = colname[:-3]
-        
         self.backref_name = inflect_engine.plural_noun(self.backref_name)
 
         # Add uselist=False to One-to-One relationships
@@ -500,7 +500,6 @@ class ManyToManyRelationship(Relationship):
         colname = constraints[1].columns[0] 
         tablename = constraints[1].elements[0].column.table.name
         self.preferred_name = tablename if not colname.endswith('_id') else colname[:-3] + 's'
-        
         self.backref_name = inflect_engine.plural_noun(self.backref_name)
 
         # Handle self referential relationships
