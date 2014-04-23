@@ -26,6 +26,8 @@ _re_enum_check_constraint = re.compile(r"(?:(?:.*?)\.)?(.*?) IN \((.+)\)")
 _re_enum_item = re.compile(r"'(.*?)(?<!\\)'")
 _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 else r'(?u)\W')
 
+_re_first_cap = re.compile('(.)([A-Z][a-z]+)')
+_re_all_cap = re.compile('([a-z0-9])([A-Z])')
 
 class _DummyInflectEngine(object):
     def singular_noun(self, noun):
@@ -187,10 +189,10 @@ def _render_constraint(constraint):
         return 'UniqueConstraint({0})'.format(', '.join(columns))
 
 
-def _camelcase_to_underscore(name):
-        """Converts CamelCase to camel_case. See http://stackoverflow.com/questions/1175208"""
-        s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-        return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+def _underscore(name):
+    """Converts CamelCase to camel_case. See http://stackoverflow.com/questions/1175208"""
+    s1 = _re_first_cap.sub(r'\1_\2', name)
+    return _re_all_cap.sub(r'\1_\2', s1).lower()
 
 
 def _is_model_descendant(model_a, model_b):
@@ -407,7 +409,7 @@ class Relationship(object):
         self.source_cls = source_cls
         self.target_cls = target_cls
         self.kwargs = OrderedDict()
-        self.backref_name = _camelcase_to_underscore(self.source_cls)
+        self.backref_name = _underscore(self.source_cls)
 
     def render(self):
         text = 'relationship('
