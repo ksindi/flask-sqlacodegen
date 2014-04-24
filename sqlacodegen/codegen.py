@@ -475,6 +475,8 @@ class ManyToOneRelationship(Relationship):
         # If the two tables share more than one foreign key constraint,
         # SQLAlchemy needs an explicit primaryjoin to figure out which column(s) to join with
         # common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
+        # if len(common_fk_constraints) > 1:
+        # self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls, constraint.elements[0].column.name)
         if len(constraint.elements) > 1:  #  or 
             self.kwargs['primaryjoin'] = "'and_({0})'".format(', '.join(['{0}.{1} == {2}.{3}'.format(source_cls, k.parent.name, target_cls, k.column.name)
                         for k in constraint.elements]))
@@ -523,7 +525,8 @@ class CodeGenerator(object):
             import inflect
             inflect_engine = inflect.engine()
         
-        _special_columns = ['id', 'inserted', 'updated']
+        # exclude these column names from consideration when generating association tables
+        _special_columns = ['id', 'inserted', 'updated'] 
         self._withflask = withflask
         
         # Pick association tables from the metadata into their own set, don't process them normally
