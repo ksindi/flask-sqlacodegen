@@ -3,12 +3,18 @@ sqlacodegen
 
 *Automatic model code generator for SQLAlchemy*
 
-Forked from <a href="https://pypi.python.org/pypi/sqlacodegen">sqlacodegen</a>.
+Fork from <a href="https://pypi.python.org/pypi/sqlacodegen">sqlacodegen</a>.
 
-Generating explicit backrefs and primary joins in relationships. 
+What's different:
+* Defaults to generating backrefs in relationships. 
+    * Have `--nobackref` as an option in case backrefs are not wanted. 
+    * Naming of backref is the class name in underscore (CamelCase to camel_case) and is pluralized if it's Many-to-One or Many-to-Many using <a href="https://pypi.python.org/pypi/inflect">inflect</a>.
+* Generate explicit primary joins in relationship using `--withprijoin` as an option. I deal with pretty complicated tables that need explicit primary joins.
+    * TODO: Maybe just need to modify code to better check if primary join is needed?
+* Support for Flask-SQLAlchemy so that the proper declarative base is included. 
+    * Use `--withflask` as an option.
+* When generating association tables, I ignore special name columns *id*, *inserted*, *updated* when checking whether all columns have foreign keys as all my association tables have those columns. This is probably not standard for most users.
 
-Got help generating backrefs from <a href="https://bitbucket.org/nbasu02/sqlacodegen/commits/c937afa5f11ad591c9a9bb5fcf0cc32125653819">here</a>
+I hope to do a Pull Request once modifications are more modular.
 
-Naming of backref is different. I'm using lower_case instead of lowercase.
-
-Do not use. Not even in alpha stage.
+Still in alpha stage.
