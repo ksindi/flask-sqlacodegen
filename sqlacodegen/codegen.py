@@ -605,7 +605,6 @@ class CodeGenerator(object):
         # target class might ingerit from another
         if not nobackrefs:
             for model in classes.values():
-                self.collector.add_literal_import('sqlalchemy.orm', 'backref')
                 visited = []
                 for relationship in model.attributes.values():
                     if isinstance(relationship, Relationship):
