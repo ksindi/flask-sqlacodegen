@@ -148,11 +148,7 @@ def _render_column(column, show_name):
         column.index = True
         kwarg.append('index')
     if column.server_default:
-        default_expr = _get_compiled_expression(column.server_default.arg)
-        if '\n' in default_expr:
-            server_default = 'server_default=text("""\\\n{0}""")'.format(default_expr)
-        else:
-            server_default = 'server_default=text("{0}")'.format(default_expr)
+        server_default = 'server_default=FetchedValue()'
 
     return 'Column({0})'.format(', '.join(
         ([repr(column.name)] if show_name else []) + 
@@ -248,7 +244,7 @@ class Model(object):
         for column in self.table.columns:
             collector.add_import(column.type)
             if column.server_default:
-                collector.add_literal_import('sqlalchemy', 'text')
+                collector.add_literal_import('sqlalchemy.schema', 'FetchedValue')
 
         for constraint in sorted(self.table.constraints, key=_get_constraint_sort_key):
             if isinstance(constraint, ForeignKeyConstraint):
@@ -613,7 +609,7 @@ class CodeGenerator(object):
         
         # Add Flask-SQLAlchemy support
         if self._withflask:
-            self.collector.add_literal_import('flask.ext.sqlalchemy', 'declarative_base')
+            self.collector.add_literal_import('flask.ext.sqlalchemy', 'SQLAlchemy')
             for model in classes.values():
                 if model.parent_name == 'Base':
                     model.parent_name = 'db.Model'

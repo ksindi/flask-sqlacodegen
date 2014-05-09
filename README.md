@@ -12,9 +12,8 @@ What's different:
 * Generate explicit primary joins. I deal with pretty complicated tables that need explicit primary joins.
     * TODO: Don't do this as default and create `--withprijoin` as an option?
     * TODO: Maybe just need to modify code to better check if primary join is needed?
-* Support for Flask-SQLAlchemy so that the proper declarative base is included. Use `--withflask` as an option.
+* If column has a server_default set it to FetchValue() instead of trying to determine what that value is. Original code did not set the right server defaults in my set up.
 * When generating association tables, I ignore special name columns *id*, *inserted*, *updated* when checking whether all columns have foreign keys as all my association tables have those columns. This is probably not standard for most users.
+* Support for Flask-SQLAlchemy so that the proper declarative base is included. Use `--withflask` as an option. (Do not use option. Still in alpha).
 
 I hope to do a Pull Request once modifications are more modular.
-
-Still in alpha stage.
