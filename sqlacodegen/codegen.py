@@ -208,7 +208,7 @@ def _render_index(index):
 class ImportCollector(OrderedDict):
     def add_import(self, obj):
         type_ = type(obj) if not isinstance(obj, type) else obj
-        pkgname = 'sqlalchemy' if type_.__name__ in sqlalchemy.__all__ else type_.__module__
+        pkgname = 'sqlalchemy' if type_.__name__ in sqlalchemy.__all__ else type_.__module__  # @UndefinedVariable
         self.add_literal_import(pkgname, type_.__name__)
 
     def add_literal_import(self, pkgname, name):
@@ -377,7 +377,7 @@ class ModelClass(Model):
             if len(table_args) == 1:
                 table_args[0] += ','
             text += '    __table_args__ = (\n        {0}\n    )\n'.format(',\n        '.join(table_args))
-        
+
         # Render columns
         text += '\n'
         for attr, column in self.attributes.items():
@@ -397,7 +397,7 @@ class ModelClass(Model):
             text += '\n\n' + child_class.render()
 
         return text
-    
+
 
 class Relationship(object):
     def __init__(self, source_cls, target_cls):
@@ -419,7 +419,7 @@ class Relationship(object):
 
         args.extend([key + '=' + value for key, value in self.kwargs.items()])
         return text + delimiter.join(args) + end
-    
+
     def make_backref(self, relationships, classes):
         backref = self.backref_name
         original_backref = backref
@@ -428,8 +428,8 @@ class Relationship(object):
         while (self.target_cls, backref) in [(x.target_cls, x.backref_name) for x in relationships]:
             backref = original_backref + str('_{0}'.format(suffix))
             suffix += 1
-        
-        self.kwargs['backref'] = repr(backref) 
+
+        self.kwargs['backref'] = repr(backref)
         # Check if any of the target_cls inherit from other target_cls
         # If so, modify backref name of descendant
         # "backref({0}, lazy='dynamic')".format(repr(backref))
@@ -520,11 +520,11 @@ class CodeGenerator(object):
         else:
             import inflect
             inflect_engine = inflect.engine()
-        
+
         # exclude these column names from consideration when generating association tables
-        _special_columns = ['id', 'inserted', 'updated'] 
+        _special_columns = ['id', 'inserted', 'updated']
         self._withflask = withflask
-        
+
         # Pick association tables from the metadata into their own set, don't process them normally
         links = defaultdict(lambda: [])
         association_tables = set()
@@ -595,8 +595,7 @@ class CodeGenerator(object):
             if model.parent_name != 'Base':
                 classes[model.parent_name].children.append(model)
                 self.models.remove(model)
-            
-        
+
         # If backrefs are allowed. Resolve any relationships confilicts where one
         # target class might ingerit from another
         if not nobackrefs:
@@ -606,7 +605,7 @@ class CodeGenerator(object):
                     if isinstance(relationship, Relationship):
                         relationship.make_backref(visited, classes)
                         visited.append(relationship)
-        
+
         # Add Flask-SQLAlchemy support
         if self._withflask:
             self.collector.add_literal_import('flask.ext.sqlalchemy', 'SQLAlchemy')
@@ -625,7 +624,7 @@ class CodeGenerator(object):
 
         # Render the collected imports
         print(self.collector.render() + '\n\n', file=outfile)
-        
+
         if self._withflask:
             print('db = SQLAlchemy()', file=outfile)
         else:
@@ -633,7 +632,7 @@ class CodeGenerator(object):
                 print('Base = declarative_base()\nmetadata = Base.metadata', file=outfile)
             else:
                 print('metadata = MetaData()', file=outfile)
-        
+
         # Render the model tables and classes
         for model in self.models:
             print('\n\n' + model.render().rstrip('\n'), file=outfile)
