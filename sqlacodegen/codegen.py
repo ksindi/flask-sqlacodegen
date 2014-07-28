@@ -29,6 +29,9 @@ _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 
 _re_first_cap = re.compile('(.)([A-Z][a-z]+)')
 _re_all_cap = re.compile('([a-z0-9])([A-Z])')
 
+_flask_prepend = 'db.'
+
+
 class _DummyInflectEngine(object):
     def singular_noun(self, noun):
         return noun
@@ -148,10 +151,10 @@ def _render_column(column, show_name):
         column.index = True
         kwarg.append('index')
     if column.server_default:
-        server_default = 'server_default=FetchedValue()'
+        server_default = 'server_default=db.FetchedValue()'
 
-    return 'Column({0})'.format(', '.join(
-        ([repr(column.name)] if show_name else []) + 
+    return 'db.Column({0})'.format(', '.join(
+        ([repr('db.' + column.name)] if show_name else []) + 
         ([_render_column_type(column.type)] if render_coltype else []) + 
         [_render_constraint(x) for x in dedicated_fks] + 
         [repr(x) for x in column.constraints] + 
@@ -172,17 +175,17 @@ def _render_constraint(constraint):
 
     if isinstance(constraint, ForeignKey):
         remote_column = '{0}.{1}'.format(constraint.column.table.fullname, constraint.column.name)
-        return 'ForeignKey({0})'.format(render_fk_options(remote_column))
+        return 'db.ForeignKey({0})'.format(render_fk_options(remote_column))
     elif isinstance(constraint, ForeignKeyConstraint):
         local_columns = constraint.columns
         remote_columns = ['{0}.{1}'.format(fk.column.table.fullname, fk.column.name)
                           for fk in constraint.elements]
-        return 'ForeignKeyConstraint({0})'.format(render_fk_options(local_columns, remote_columns))
+        return 'db.ForeignKeyConstraint({0})'.format(render_fk_options(local_columns, remote_columns))
     elif isinstance(constraint, CheckConstraint):
-        return 'CheckConstraint({0!r})'.format(_get_compiled_expression(constraint.sqltext))
+        return 'db.CheckConstraint({0!r})'.format(_get_compiled_expression(constraint.sqltext))
     elif isinstance(constraint, UniqueConstraint):
         columns = [repr(col.name) for col in constraint.columns]
-        return 'UniqueConstraint({0})'.format(', '.join(columns))
+        return 'db.UniqueConstraint({0})'.format(', '.join(columns))
 
 
 def _underscore(name):
@@ -202,7 +205,7 @@ def _is_model_descendant(model_a, model_b):
 
 def _render_index(index):
     columns = [repr(col.name) for col in index.columns]
-    return 'Index({0!r}, {1})'.format(index.name, ', '.join(columns))
+    return 'db.Index({0!r}, {1})'.format(index.name, ', '.join(columns))
 
 
 class ImportCollector(OrderedDict):
@@ -269,7 +272,8 @@ class ModelTable(Model):
         collector.add_import(Table)
 
     def render(self):
-        text = 't_{0} = Table(\n    {0!r}, metadata,\n'.format(self.table.name)
+        # text = 't_{0} = Table(\n    {0!r}, metadata,\n'.format(self.table.name)
+        text = 't_{0} = db.Table(\n    {0!r},\n'.format(self.table.name)
 
         for column in self.table.columns:
             text += '    {0},\n'.format(_render_column(column, True))
@@ -349,6 +353,11 @@ class ModelClass(Model):
 
     def render(self):
         text = 'class {0}({1}):\n'.format(self.name, self.parent_name)
+
+        text += 'cache_label = {0!r}\n'.format('default')
+        text += 'cache_regions = regions\n'
+        text += 'query_class = query_callable(regions)\n'
+
         text += '    __tablename__ = {0!r}\n'.format(self.table.name)
 
         # Render constraints and indexes as __table_args__
@@ -408,7 +417,7 @@ class Relationship(object):
         self.backref_name = _underscore(self.source_cls)
 
     def render(self):
-        text = 'relationship('
+        text = 'db.relationship('
         args = [repr(self.target_cls)]
 
         if 'secondaryjoin' in self.kwargs:
@@ -608,10 +617,14 @@ class CodeGenerator(object):
 
         # Add Flask-SQLAlchemy support
         if self._withflask:
-            self.collector.add_literal_import('flask.ext.sqlalchemy', 'SQLAlchemy')
+            self.collector.add_literal_import('flask_sqlalchemy', 'SQLAlchemy')
+            self.collector.add_literal_import('caching', 'CacheableMixin')
+            self.collector.add_literal_import('caching', 'query_callable')
+            self.collector.add_literal_import('caching', 'regions')
+
             for model in classes.values():
                 if model.parent_name == 'Base':
-                    model.parent_name = 'db.Model'
+                    model.parent_name = 'db.Model, CacheableMixin'
         else:
             # Add either the MetaData or declarative_base import depending on whether there are mapped classes or not
             if not any(isinstance(model, ModelClass) for model in self.models):
