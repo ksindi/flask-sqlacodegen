@@ -152,7 +152,7 @@ def _render_column(column, show_name):
         server_default = 'server_default=db.FetchedValue()'
 
     return 'db.Column({0})'.format(', '.join(
-        ([repr('db.' + column.name)] if show_name else []) + 
+        ([repr(column.name)] if show_name else []) + 
         ([_render_column_type(column.type)] if render_coltype else []) + 
         [_render_constraint(x) for x in dedicated_fks] + 
         [repr(x) for x in column.constraints] + 
