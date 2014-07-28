@@ -519,7 +519,7 @@ class CodeGenerator(object):
     header = '# coding: utf-8'
     footer = ''
 
-    def __init__(self, metadata, noindexes=False, noconstraints=False, nojoined=False, noinflect=False, nobackrefs=False, withflask=False):
+    def __init__(self, metadata, noindexes=False, noconstraints=False, nojoined=False, noinflect=False, nobackrefs=False):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -530,7 +530,6 @@ class CodeGenerator(object):
 
         # exclude these column names from consideration when generating association tables
         _special_columns = ['id', 'inserted', 'updated']
-        self._withflask = withflask
 
         # Pick association tables from the metadata into their own set, don't process them normally
         links = defaultdict(lambda: [])
