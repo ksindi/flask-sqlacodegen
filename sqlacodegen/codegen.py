@@ -29,8 +29,6 @@ _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 
 _re_first_cap = re.compile('(.)([A-Z][a-z]+)')
 _re_all_cap = re.compile('([a-z0-9])([A-Z])')
 
-_flask_prepend = 'db.'
-
 
 class _DummyInflectEngine(object):
     def singular_noun(self, noun):
@@ -98,7 +96,7 @@ def _render_column_type(coltype):
     if isinstance(coltype, Enum):
         args.extend(repr(arg) for arg in coltype.enums)
         if coltype.name is not None:
-            args.append('name={0!r}'.format(coltype.name))
+            args.append('name=db.{0!r}'.format(coltype.name))
     else:
         # All other types
         argspec = _getargspec_init(coltype.__class__.__init__)
@@ -296,7 +294,7 @@ class ModelTable(Model):
 
 
 class ModelClass(Model):
-    parent_name = 'Base'
+    parent_name = 'db.Model, CacheableMixin'
 
     def __init__(self, table, association_tables, inflect_engine, detect_joined):
         super(ModelClass, self).__init__(table)
@@ -597,7 +595,7 @@ class CodeGenerator(object):
                 classes[model.name] = model
 
             self.models.append(model)
-            model.add_imports(self.collector)
+            # model.add_imports(self.collector)
 
         # Nest inherited classes in their superclasses to ensure proper ordering
         for model in classes.values():
@@ -616,21 +614,12 @@ class CodeGenerator(object):
                         visited.append(relationship)
 
         # Add Flask-SQLAlchemy support
-        if self._withflask:
-            self.collector.add_literal_import('flask_sqlalchemy', 'SQLAlchemy')
-            self.collector.add_literal_import('caching', 'CacheableMixin')
-            self.collector.add_literal_import('caching', 'query_callable')
-            self.collector.add_literal_import('caching', 'regions')
+        self.collector.add_literal_import('flask_sqlalchemy', 'SQLAlchemy')
 
-            for model in classes.values():
-                if model.parent_name == 'Base':
-                    model.parent_name = 'db.Model, CacheableMixin'
-        else:
-            # Add either the MetaData or declarative_base import depending on whether there are mapped classes or not
-            if not any(isinstance(model, ModelClass) for model in self.models):
-                self.collector.add_literal_import('sqlalchemy', 'MetaData')
-            else:
-                self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
+        # Add Cache support
+        self.collector.add_literal_import('caching', 'CacheableMixin')
+        self.collector.add_literal_import('caching', 'query_callable')
+        self.collector.add_literal_import('caching', 'regions')
 
     def render(self, outfile=sys.stdout):
         print(self.header, file=outfile)
@@ -638,13 +627,7 @@ class CodeGenerator(object):
         # Render the collected imports
         print(self.collector.render() + '\n\n', file=outfile)
 
-        if self._withflask:
-            print('db = SQLAlchemy()', file=outfile)
-        else:
-            if any(isinstance(model, ModelClass) for model in self.models):
-                print('Base = declarative_base()\nmetadata = Base.metadata', file=outfile)
-            else:
-                print('metadata = MetaData()', file=outfile)
+        print('db = SQLAlchemy()', file=outfile)
 
         # Render the model tables and classes
         for model in self.models:
