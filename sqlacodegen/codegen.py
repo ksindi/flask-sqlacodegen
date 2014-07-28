@@ -117,7 +117,7 @@ def _render_column_type(coltype):
             else:
                 args.append(repr(value))
 
-    text = coltype.__class__.__name__
+    text = 'db.' + coltype.__class__.__name__
     if args:
         text += '({0})'.format(', '.join(args))
 
@@ -354,7 +354,7 @@ class ModelClass(Model):
 
         text += '    cache_label = {0!r}\n'.format('default')
         text += '    cache_regions = regions\n'
-        text += '    query_class = query_callable(regions)\n'
+        text += '    query_class = query_callable(regions)\n\n'
 
         text += '    __tablename__ = {0!r}\n'.format(self.table.name)
 
