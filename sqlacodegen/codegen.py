@@ -294,7 +294,7 @@ class ModelTable(Model):
 
 
 class ModelClass(Model):
-    parent_name = 'db.Model, CacheableMixin'
+    parent_name = 'Base'
 
     def __init__(self, table, association_tables, inflect_engine, detect_joined):
         super(ModelClass, self).__init__(table)
@@ -613,6 +613,10 @@ class CodeGenerator(object):
                         relationship.make_backref(visited, classes)
                         visited.append(relationship)
 
+        for model in classes.values():
+            if model.parent_name == 'Base':
+                model.parent_name = 'db.Model, CacheableMixin'
+
         # Add Flask-SQLAlchemy support
         self.collector.add_literal_import('flask_sqlalchemy', 'SQLAlchemy')
 
@@ -626,7 +630,8 @@ class CodeGenerator(object):
 
         # Render the collected imports
         print(self.collector.render() + '\n\n', file=outfile)
-
+        
+        
         print('db = SQLAlchemy()', file=outfile)
 
         # Render the model tables and classes

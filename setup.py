@@ -32,9 +32,8 @@ setup(
     description='Automatic model code generator for SQLAlchemy',
     long_description=readme,
     version=sqlacodegen.version,
-    author='Alex Gronholm',
-    author_email='sqlacodegen@nextday.fi',
-    url='http://pypi.python.org/pypi/sqlacodegen/',
+    author='Kamil Sindi',
+    author_email='kysindi@gmail.com',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
