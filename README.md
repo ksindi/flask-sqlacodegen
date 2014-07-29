@@ -1,7 +1,7 @@
 flask-sqlacodegen
 =================
 
-* Automatic model code generator for SQLAlchemy*
+* Automatic model code generator for SQLAlchemy *
 
 Fork from <a href="https://pypi.python.org/pypi/sqlacodegen">sqlacodegen</a>. Based off of version 1.1.5.pre2.
 
