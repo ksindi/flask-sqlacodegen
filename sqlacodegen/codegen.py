@@ -29,6 +29,8 @@ _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 
 _re_first_cap = re.compile('(.)([A-Z][a-z]+)')
 _re_all_cap = re.compile('([a-z0-9])([A-Z])')
 
+_flask_prepend = 'db.'
+
 
 class _DummyInflectEngine(object):
     def singular_noun(self, noun):
@@ -96,7 +98,7 @@ def _render_column_type(coltype):
     if isinstance(coltype, Enum):
         args.extend(repr(arg) for arg in coltype.enums)
         if coltype.name is not None:
-            args.append('name=db.{0!r}'.format(coltype.name))
+            args.append('name={0!r}'.format(coltype.name))
     else:
         # All other types
         argspec = _getargspec_init(coltype.__class__.__init__)
@@ -117,7 +119,7 @@ def _render_column_type(coltype):
             else:
                 args.append(repr(value))
 
-    text = 'db.' + coltype.__class__.__name__
+    text = _flask_prepend + coltype.__class__.__name__
     if args:
         text += '({0})'.format(', '.join(args))
 
@@ -151,12 +153,12 @@ def _render_column(column, show_name):
     if column.server_default:
         server_default = 'server_default=db.FetchedValue()'
 
-    return 'db.Column({0})'.format(', '.join(
-        ([repr(column.name)] if show_name else []) + 
-        ([_render_column_type(column.type)] if render_coltype else []) + 
-        [_render_constraint(x) for x in dedicated_fks] + 
-        [repr(x) for x in column.constraints] + 
-        ['{0}={1}'.format(k, repr(getattr(column, k))) for k in kwarg] + 
+    return _flask_prepend + 'Column({0})'.format(', '.join(
+        ([repr(column.name)] if show_name else []) +
+        ([_render_column_type(column.type)] if render_coltype else []) +
+        [_render_constraint(x) for x in dedicated_fks] +
+        [repr(x) for x in column.constraints] +
+        ['{0}={1}'.format(k, repr(getattr(column, k))) for k in kwarg] +
         ([server_default] if column.server_default else [])
     ))
 
@@ -173,17 +175,17 @@ def _render_constraint(constraint):
 
     if isinstance(constraint, ForeignKey):
         remote_column = '{0}.{1}'.format(constraint.column.table.fullname, constraint.column.name)
-        return 'db.ForeignKey({0})'.format(render_fk_options(remote_column))
+        return _flask_prepend + 'ForeignKey({0})'.format(render_fk_options(remote_column))
     elif isinstance(constraint, ForeignKeyConstraint):
         local_columns = constraint.columns
         remote_columns = ['{0}.{1}'.format(fk.column.table.fullname, fk.column.name)
                           for fk in constraint.elements]
-        return 'db.ForeignKeyConstraint({0})'.format(render_fk_options(local_columns, remote_columns))
+        return _flask_prepend + 'ForeignKeyConstraint({0})'.format(render_fk_options(local_columns, remote_columns))
     elif isinstance(constraint, CheckConstraint):
-        return 'db.CheckConstraint({0!r})'.format(_get_compiled_expression(constraint.sqltext))
+        return _flask_prepend + 'CheckConstraint({0!r})'.format(_get_compiled_expression(constraint.sqltext))
     elif isinstance(constraint, UniqueConstraint):
         columns = [repr(col.name) for col in constraint.columns]
-        return 'db.UniqueConstraint({0})'.format(', '.join(columns))
+        return _flask_prepend + 'UniqueConstraint({0})'.format(', '.join(columns))
 
 
 def _underscore(name):
@@ -203,7 +205,7 @@ def _is_model_descendant(model_a, model_b):
 
 def _render_index(index):
     columns = [repr(col.name) for col in index.columns]
-    return 'db.Index({0!r}, {1})'.format(index.name, ', '.join(columns))
+    return _flask_prepend + 'Index({0!r}, {1})'.format(index.name, ', '.join(columns))
 
 
 class ImportCollector(OrderedDict):
@@ -271,7 +273,8 @@ class ModelTable(Model):
 
     def render(self):
         # text = 't_{0} = Table(\n    {0!r}, metadata,\n'.format(self.table.name)
-        text = 't_{0} = db.Table(\n    {0!r},\n'.format(self.table.name)
+        met = ' metadata,' if _flask_prepend else ''
+        text = 't_{0} = {1}Table(\n    {0!r},{2}\n'.format(self.table.name, _flask_prepend, met)
 
         for column in self.table.columns:
             text += '    {0},\n'.format(_render_column(column, True))
@@ -495,7 +498,7 @@ class ManyToManyRelationship(Relationship):
         self.kwargs['secondary'] = repr(assocation_table.schema + '.' + assocation_table.name)
         constraints = [c for c in assocation_table.constraints if isinstance(c, ForeignKeyConstraint)]
         constraints.sort(key=_get_constraint_sort_key)
-        colname = constraints[1].columns[0] 
+        colname = constraints[1].columns[0]
         tablename = constraints[1].elements[0].column.table.name
         self.preferred_name = tablename if not colname.endswith('_id') else colname[:-3] + 's'
         self.backref_name = inflect_engine.plural_noun(self.backref_name)
@@ -519,7 +522,9 @@ class CodeGenerator(object):
     header = '# coding: utf-8'
     footer = ''
 
-    def __init__(self, metadata, noindexes=False, noconstraints=False, nojoined=False, noinflect=False, nobackrefs=False):
+    def __init__(self, metadata, noindexes=False, noconstraints=False,
+                 nojoined=False, noinflect=False, nobackrefs=False,
+                 flask=False, dogpile=False, fkcols=None):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -529,7 +534,7 @@ class CodeGenerator(object):
             inflect_engine = inflect.engine()
 
         # exclude these column names from consideration when generating association tables
-        _special_columns = ['id', 'inserted', 'updated']
+        _special_columns = fkcols or []
 
         # Pick association tables from the metadata into their own set, don't process them normally
         links = defaultdict(lambda: [])
@@ -594,7 +599,7 @@ class CodeGenerator(object):
                 classes[model.name] = model
 
             self.models.append(model)
-            # model.add_imports(self.collector)
+            model.add_imports(self.collector)
 
         # Nest inherited classes in their superclasses to ensure proper ordering
         for model in classes.values():
@@ -602,8 +607,8 @@ class CodeGenerator(object):
                 classes[model.parent_name].children.append(model)
                 self.models.remove(model)
 
-        # If backrefs are allowed. Resolve any relationships confilicts where one
-        # target class might ingerit from another
+        # If backrefs are allowed. Resolve any relationships conflicts where one
+        # target class might inherit from another
         if not nobackrefs:
             for model in classes.values():
                 visited = []
@@ -612,26 +617,37 @@ class CodeGenerator(object):
                         relationship.make_backref(visited, classes)
                         visited.append(relationship)
 
-        for model in classes.values():
-            if model.parent_name == 'Base':
-                model.parent_name = 'db.Model, CacheableMixin'
+        self.flask = flask
+        if self.flask:
+            # Add Flask-SQLAlchemy support
+            self.collector.add_literal_import('flask_sqlalchemy', 'SQLAlchemy')
+            parent_name = 'db.Model'
 
-        # Add Flask-SQLAlchemy support
-        self.collector.add_literal_import('flask_sqlalchemy', 'SQLAlchemy')
+            if dogpile:
+                # Add Cache support
+                parent_name = 'db.Model, CacheableMixin'
+                self.collector.add_literal_import('caching', 'CacheableMixin')
+                self.collector.add_literal_import('caching', 'query_callable')
+                self.collector.add_literal_import('caching', 'regions')
 
-        # Add Cache support
-        self.collector.add_literal_import('caching', 'CacheableMixin')
-        self.collector.add_literal_import('caching', 'query_callable')
-        self.collector.add_literal_import('caching', 'regions')
+            for model in classes.values():
+                if model.parent_name == 'Base':
+                    model.parent_name = parent_name
 
     def render(self, outfile=sys.stdout):
         print(self.header, file=outfile)
 
         # Render the collected imports
         print(self.collector.render() + '\n\n', file=outfile)
-        
-        
-        print('db = SQLAlchemy()', file=outfile)
+
+        if self.flask:
+            print('db = SQLAlchemy()', file=outfile)
+        else:
+            _flask_prepend = ''
+            if any(isinstance(model, ModelClass) for model in self.models):
+                print('Base = declarative_base()\nmetadata = Base.metadata', file=outfile)
+            else:
+                print('metadata = MetaData()', file=outfile)
 
         # Render the model tables and classes
         for model in self.models:
