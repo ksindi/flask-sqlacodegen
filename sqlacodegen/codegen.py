@@ -495,7 +495,7 @@ class ManyToManyRelationship(Relationship):
     def __init__(self, source_cls, target_cls, assocation_table, inflect_engine):
         super(ManyToManyRelationship, self).__init__(source_cls, target_cls)
 
-        self.kwargs['secondary'] = repr(assocation_table.schema + '.' + assocation_table.name)
+        self.kwargs['secondary'] = repr(assocation_table.schema) + '.' + repr(assocation_table.name)
         constraints = [c for c in assocation_table.constraints if isinstance(c, ForeignKeyConstraint)]
         constraints.sort(key=_get_constraint_sort_key)
         colname = constraints[1].columns[0]
