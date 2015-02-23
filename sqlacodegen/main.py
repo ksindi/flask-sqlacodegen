@@ -1,6 +1,7 @@
 """ """
 from __future__ import unicode_literals, division, print_function, absolute_import
 import argparse
+import importlib
 import sys
 
 from sqlalchemy.engine import create_engine
@@ -8,6 +9,15 @@ from sqlalchemy.schema import MetaData
 
 from sqlacodegen.codegen import CodeGenerator
 import sqlacodegen
+import sqlacodegen.dialects
+
+
+def import_dialect_specificities(engine):
+    dialect_name = '.' + engine.dialect.name
+    try:
+        importlib.import_module(dialect_name, 'sqlacodegen.dialects')
+    except ImportError:
+        pass
 
 
 def main():
@@ -42,6 +52,7 @@ def main():
         return
 
     engine = create_engine(args.url)
+    import_dialect_specificities(engine)
     metadata = MetaData(engine)
     tables = args.tables.split(',') if args.tables else None
     fkcols = args.ignorefk.split(',') if args.ignorefk else None
