@@ -299,11 +299,12 @@ class ModelTable(Model):
 class ModelClass(Model):
     parent_name = 'Base'
 
-    def __init__(self, table, association_tables, inflect_engine, detect_joined):
+    def __init__(self, table, association_tables, inflect_engine, detect_joined, dogpile=False):
         super(ModelClass, self).__init__(table)
         self.name = self._tablename_to_classname(table.name, inflect_engine)
         self.children = []
         self.attributes = OrderedDict()
+        self.dogpile = dogpile
 
         # Assign attribute names for columns
         for column in table.columns:
@@ -355,9 +356,10 @@ class ModelClass(Model):
     def render(self):
         text = 'class {0}({1}):\n'.format(self.name, self.parent_name)
 
-        text += '    cache_label = {0!r}\n'.format('default')
-        text += '    cache_regions = regions\n'
-        text += '    query_class = query_callable(regions)\n\n'
+        if self.dogpile:
+            text += '    cache_label = {0!r}\n'.format('default')
+            text += '    cache_regions = regions\n'
+            text += '    query_class = query_callable(regions)\n\n'
 
         text += '    __tablename__ = {0!r}\n'.format(self.table.name)
 
@@ -595,7 +597,7 @@ class CodeGenerator(object):
             if not table.primary_key or table.name in association_tables:
                 model = ModelTable(table)
             else:
-                model = ModelClass(table, links[table.name], inflect_engine, not nojoined)
+                model = ModelClass(table, links[table.name], inflect_engine, not nojoined, dogpile)
                 classes[model.name] = model
 
             self.models.append(model)
