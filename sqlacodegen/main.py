@@ -36,7 +36,7 @@ def main():
         print('You must supply a url\n', file=sys.stderr)
         parser.print_help()
         return
-    if not args.dogpile and not args.flask:
+    if args.dogpile and not args.flask:
         print('You must use --flask in order to use dogpile option\n', file=sys.stderr)
         parser.print_help()
         return
