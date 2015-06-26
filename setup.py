@@ -28,7 +28,7 @@ readme_path = os.path.join(here, 'README.rst')
 readme = open(readme_path).read()
 
 setup(
-    name='flask-sqlacodegen',
+    name='sqlacodegen',
     description='Automatic model code generator for SQLAlchemy',
     long_description=readme,
     version=sqlacodegen.version,
