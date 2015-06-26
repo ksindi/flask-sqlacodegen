@@ -24,7 +24,6 @@ def main():
     parser.add_argument('--nobackrefs', action='store_true', help="don't include backrefs")
     parser.add_argument('--flask', action='store_true', help="use Flask-SQLAlchemy columns")
     parser.add_argument('--ignorefk', action='store_true', help="Don't check fk constraints on specified columns (comma-separated)")
-    parser.add_argument('--dogpile', action='store_true', help="Use dogpile caching. Depends on --flask.")
     parser.add_argument('--outfile', type=argparse.FileType('w'), default=sys.stdout,
                         help='file to write output to (default: stdout)')
     args = parser.parse_args()
@@ -36,10 +35,6 @@ def main():
         print('You must supply a url\n', file=sys.stderr)
         parser.print_help()
         return
-    if not args.dogpile and not args.flask:
-        print('You must use --flask in order to use dogpile option\n', file=sys.stderr)
-        parser.print_help()
-        return
 
     engine = create_engine(args.url)
     metadata = MetaData(engine)
@@ -48,5 +43,5 @@ def main():
     metadata.reflect(engine, args.schema, not args.noviews, tables)
     generator = CodeGenerator(metadata, args.noindexes, args.noconstraints,
                               args.nojoined, args.noinflect, args.nobackrefs,
-                              args.flask, args.dogpile, fkcols)
+                              args.flask, fkcols)
     generator.render(args.outfile)
