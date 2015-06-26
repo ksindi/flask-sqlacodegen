@@ -29,7 +29,7 @@ _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 
 _re_first_cap = re.compile('(.)([A-Z][a-z]+)')
 _re_all_cap = re.compile('([a-z0-9])([A-Z])')
 
-_flask_prepend = ''  # 'db.'
+_flask_prepend = 'db.'
 
 
 class _DummyInflectEngine(object):
