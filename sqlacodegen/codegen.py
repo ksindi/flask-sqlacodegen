@@ -151,7 +151,7 @@ def _render_column(column, show_name):
         column.index = True
         kwarg.append('index')
     if column.server_default:
-        server_default = 'server_default=db.FetchedValue()'
+        server_default = 'server_default=' + _flask_prepend + 'FetchedValue()'
 
     return _flask_prepend + 'Column({0})'.format(', '.join(
         ([repr(column.name)] if show_name else []) +
@@ -413,7 +413,7 @@ class Relationship(object):
         self.backref_name = _underscore(self.source_cls)
 
     def render(self):
-        text = 'db.relationship('
+        text = _flask_prepend + 'relationship('
         args = [repr(self.target_cls)]
 
         if 'secondaryjoin' in self.kwargs:
@@ -530,6 +530,11 @@ class CodeGenerator(object):
 
         # exclude these column names from consideration when generating association tables
         _special_columns = fkcols or []
+        
+        self.flask = flask
+        if not self.flask:
+            global _flask_prepend
+            _flask_prepend = ''
 
         # Pick association tables from the metadata into their own set, don't process them normally
         links = defaultdict(lambda: [])
@@ -612,7 +617,6 @@ class CodeGenerator(object):
                         relationship.make_backref(visited, classes)
                         visited.append(relationship)
 
-        self.flask = flask
         if self.flask:
             # Add Flask-SQLAlchemy support
             self.collector.add_literal_import('flask_sqlalchemy', 'SQLAlchemy')
@@ -621,6 +625,8 @@ class CodeGenerator(object):
             for model in classes.values():
                 if model.parent_name == 'Base':
                     model.parent_name = parent_name
+        else:
+            self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
 
     def render(self, outfile=sys.stdout):
         print(self.header, file=outfile)
@@ -631,7 +637,6 @@ class CodeGenerator(object):
         if self.flask:
             print('db = SQLAlchemy()', file=outfile)
         else:
-            _flask_prepend = ''
             if any(isinstance(model, ModelClass) for model in self.models):
                 print('Base = declarative_base()\nmetadata = Base.metadata', file=outfile)
             else:
