@@ -354,11 +354,6 @@ class ModelClass(Model):
 
     def render(self):
         text = 'class {0}({1}):\n'.format(self.name, self.parent_name)
-
-        text += '    cache_label = {0!r}\n'.format('default')
-        text += '    cache_regions = regions\n'
-        text += '    query_class = query_callable(regions)\n\n'
-
         text += '    __tablename__ = {0!r}\n'.format(self.table.name)
 
         # Render constraints and indexes as __table_args__
