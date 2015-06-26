@@ -524,7 +524,7 @@ class CodeGenerator(object):
 
     def __init__(self, metadata, noindexes=False, noconstraints=False,
                  nojoined=False, noinflect=False, nobackrefs=False,
-                 flask=False, dogpile=False, fkcols=None):
+                 flask=False, fkcols=None):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -622,13 +622,6 @@ class CodeGenerator(object):
             # Add Flask-SQLAlchemy support
             self.collector.add_literal_import('flask_sqlalchemy', 'SQLAlchemy')
             parent_name = 'db.Model'
-
-            if dogpile:
-                # Add Cache support
-                parent_name = 'db.Model, CacheableMixin'
-                self.collector.add_literal_import('caching', 'CacheableMixin')
-                self.collector.add_literal_import('caching', 'query_callable')
-                self.collector.add_literal_import('caching', 'regions')
 
             for model in classes.values():
                 if model.parent_name == 'Base':
