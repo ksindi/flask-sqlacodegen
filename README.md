@@ -5,8 +5,6 @@ sqlacodegen
 
 Fork from <a href="https://pypi.python.org/pypi/sqlacodegen">sqlacodegen</a>. Based off of version 1.1.5.pre2.
 
-__In alpha stage. No plans for further development or support. Just wanted to share my modifications with people facing similar issues.__
-
 What's different:
 * Support for Flask-SQLAlchemy syntax using `--flask` option. All this means:
   * SQLAlchemy class is instantiated (i.e. `db = SQLAlchemy()`).
