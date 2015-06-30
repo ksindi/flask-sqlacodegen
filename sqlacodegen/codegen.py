@@ -272,8 +272,7 @@ class ModelTable(Model):
         collector.add_import(Table)
 
     def render(self):
-        # text = 't_{0} = Table(\n    {0!r}, metadata,\n'.format(self.table.name)
-        met = ' metadata,' if _flask_prepend else ''
+        met = ' metadata,' if _flask_prepend == '' else ''
         text = 't_{0} = {1}Table(\n    {0!r},{2}\n'.format(self.table.name, _flask_prepend, met)
 
         for column in self.table.columns:
