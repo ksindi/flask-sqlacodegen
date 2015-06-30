@@ -33,7 +33,7 @@ def main():
     parser.add_argument('--noinflect', action='store_true', help="don't try to convert tables names to singular form")
     parser.add_argument('--nobackrefs', action='store_true', help="don't include backrefs")
     parser.add_argument('--flask', action='store_true', help="use Flask-SQLAlchemy columns")
-    parser.add_argument('--ignorefk', action='store_true', help="Don't check fk constraints on specified columns (comma-separated)")
+    parser.add_argument('--ignorefk', help="Don't check fk constraints on specified columns (comma-separated)")
     parser.add_argument('--outfile', type=argparse.FileType('w'), default=sys.stdout,
                         help='file to write output to (default: stdout)')
     args = parser.parse_args()
