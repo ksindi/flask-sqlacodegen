@@ -1,6 +1,7 @@
 """ """
 from __future__ import unicode_literals, division, print_function, absolute_import
 import argparse
+import codecs
 import importlib
 import sys
 
@@ -31,11 +32,13 @@ def main():
     parser.add_argument('--noconstraints', action='store_true', help='ignore constraints')
     parser.add_argument('--nojoined', action='store_true', help="don't autodetect joined table inheritance")
     parser.add_argument('--noinflect', action='store_true', help="don't try to convert tables names to singular form")
+    parser.add_argument('--noclasses', action='store_true', help="don't generate classes, only tables")
+    parser.add_argument('--outfile', help='file to write output to (default: stdout)')
     parser.add_argument('--nobackrefs', action='store_true', help="don't include backrefs")
     parser.add_argument('--flask', action='store_true', help="use Flask-SQLAlchemy columns")
     parser.add_argument('--ignorefk', help="Don't check fk constraints on specified columns (comma-separated)")
-    parser.add_argument('--outfile', type=argparse.FileType('w'), default=sys.stdout,
-                        help='file to write output to (default: stdout)')
+    # parser.add_argument('--outfile', type=argparse.FileType('w'), default=sys.stdout,
+    #                     help='file to write output to (default: stdout)')
     args = parser.parse_args()
 
     if args.version:
@@ -52,7 +55,8 @@ def main():
     tables = args.tables.split(',') if args.tables else None
     fkcols = args.ignorefk.split(',') if args.ignorefk else None
     metadata.reflect(engine, args.schema, not args.noviews, tables)
+    outfile = codecs.open(args.outfile, 'w', encoding='utf-8') if args.outfile else sys.stdout
     generator = CodeGenerator(metadata, args.noindexes, args.noconstraints,
                               args.nojoined, args.noinflect, args.nobackrefs,
                               args.flask, fkcols)
-    generator.render(args.outfile)
+    generator.render(outfile)

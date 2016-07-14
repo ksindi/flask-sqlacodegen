@@ -41,6 +41,13 @@ class _DummyInflectEngine(object):
         return inflect_engine.plural_noun(noun)
 
 
+# In SQLAlchemy 0.x, constraint.columns is sometimes a list, on 1.x onwards, always a ColumnCollection
+def _get_column_names(constraint):
+    if isinstance(constraint.columns, list):
+        return constraint.columns
+    return list(constraint.columns.keys())
+
+
 def _convert_to_valid_identifier(name):
     assert name, 'Identifier cannot be empty'
     if name[0].isdigit() or iskeyword(name):
@@ -71,7 +78,7 @@ def _get_compiled_expression(statement):
 def _get_constraint_sort_key(constraint):
     if isinstance(constraint, CheckConstraint):
         return 'C{0}'.format(constraint.sqltext)
-    return constraint.__class__.__name__[0] + repr(constraint.columns)
+    return constraint.__class__.__name__[0] + repr(_get_column_names(constraint))
 
 
 def _get_common_fk_constraints(table1, table2):
@@ -177,7 +184,7 @@ def _render_constraint(constraint):
         remote_column = '{0}.{1}'.format(constraint.column.table.fullname, constraint.column.name)
         return _flask_prepend + 'ForeignKey({0})'.format(render_fk_options(remote_column))
     elif isinstance(constraint, ForeignKeyConstraint):
-        local_columns = constraint.columns
+        local_columns = _get_column_names(constraint)
         remote_columns = ['{0}.{1}'.format(fk.column.table.fullname, fk.column.name)
                           for fk in constraint.elements]
         return _flask_prepend + 'ForeignKeyConstraint({0})'.format(render_fk_options(local_columns, remote_columns))
@@ -313,7 +320,8 @@ class ModelClass(Model):
         for constraint in sorted(table.constraints, key=_get_constraint_sort_key):
             if isinstance(constraint, ForeignKeyConstraint):
                 target_cls = self._tablename_to_classname(constraint.elements[0].column.table.name, inflect_engine)
-                if detect_joined and self.parent_name == 'Base' and set(constraint.columns) == pk_column_names:
+                if (detect_joined and self.parent_name == 'Base' and
+                        set(_get_column_names(constraint)) == pk_column_names):
                     self.parent_name = target_cls
                 else:
                     relationship_ = ManyToOneRelationship(self.name, target_cls, constraint, inflect_engine)
@@ -452,7 +460,8 @@ class ManyToOneRelationship(Relationship):
     def __init__(self, source_cls, target_cls, constraint, inflect_engine):
         super(ManyToOneRelationship, self).__init__(source_cls, target_cls)
 
-        colname = constraint.columns[0]
+        column_names = _get_column_names(constraint)
+        colname = column_names[0]
         tablename = constraint.elements[0].column.table.name
         if not colname.endswith('_id'):
             self.preferred_name = inflect_engine.singular_noun(tablename) or tablename
@@ -462,7 +471,7 @@ class ManyToOneRelationship(Relationship):
 
         # Add uselist=False to One-to-One relationships
         if any(isinstance(c, (PrimaryKeyConstraint, UniqueConstraint)) and
-               set(col.name for col in c.columns) == set(constraint.columns)
+               set(col.name for col in c.columns) == set(column_names)
                for c in constraint.table.constraints):
             self.kwargs['uselist'] = 'False'
 
@@ -481,7 +490,7 @@ class ManyToOneRelationship(Relationship):
             self.kwargs['primaryjoin'] = "'and_({0})'".format(', '.join(['{0}.{1} == {2}.{3}'.format(source_cls, k.parent.name, target_cls, k.column.name)
                         for k in constraint.elements]))
         else:
-            self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls,
+            self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, column_names[0], target_cls,
                                                                        constraint.elements[0].column.name)
 
 
@@ -492,7 +501,7 @@ class ManyToManyRelationship(Relationship):
         self.kwargs['secondary'] = repr(assocation_table.schema + '.' + assocation_table.name)
         constraints = [c for c in assocation_table.constraints if isinstance(c, ForeignKeyConstraint)]
         constraints.sort(key=_get_constraint_sort_key)
-        colname = constraints[1].columns[0]
+        colname = _get_column_names(constraints[1])[0]
         tablename = constraints[1].elements[0].column.table.name
         self.preferred_name = tablename if not colname.endswith('_id') else colname[:-3] + 's'
         self.backref_name = inflect_engine.plural_noun(self.backref_name)
@@ -500,8 +509,8 @@ class ManyToManyRelationship(Relationship):
         # Handle self referential relationships
         if source_cls == target_cls:
             self.preferred_name = 'parents' if not colname.endswith('_id') else colname[:-3] + 's'
-            pri_pairs = zip(constraints[0].columns, constraints[0].elements)
-            sec_pairs = zip(constraints[1].columns, constraints[1].elements)
+            pri_pairs = zip(_get_column_names(constraints[0]), constraints[0].elements)
+            sec_pairs = zip(_get_column_names(constraints[1]), constraints[1].elements)
             pri_joins = ['{0}.{1} == {2}.c.{3}'.format(source_cls, elem.column.name, assocation_table.name, col)
                          for col, elem in pri_pairs]
             sec_joins = ['{0}.{1} == {2}.c.{3}'.format(target_cls, elem.column.name, assocation_table.name, col)
