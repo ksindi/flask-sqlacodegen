@@ -1,7 +1,7 @@
 flask-sqlacodegen
 =================
 
-Fork from <a href="https://pypi.python.org/pypi/sqlacodegen">sqlacodegen</a>. Based off of version 1.1.5.pre2.
+Fork from <a href="https://pypi.python.org/pypi/sqlacodegen">sqlacodegen</a>. Based off of version 1.1.6.
 
 What's different:
 * Support for Flask-SQLAlchemy syntax using `--flask` option. All this means:
