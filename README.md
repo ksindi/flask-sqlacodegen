@@ -7,7 +7,7 @@ What's different:
 * Support for Flask-SQLAlchemy syntax using `--flask` option. All this means:
   * SQLAlchemy class is instantiated (i.e. `db = SQLAlchemy()`).
   * Flask-SQLAlchemy columns are used (e.g. `db.Integer`).
-  * Metadata is only implicit in tables
+  * Metadata is only implicit in tables.
 * Defaults to generating backrefs in relationships. `--nobackref` still included as option in case backrefs are not wanted. 
 * Naming of backrefs is class name in snake_case (as opposed to CamelCase) and is pluralized if it's Many-to-One or Many-to-Many using <a href="https://pypi.python.org/pypi/inflect">inflect</a>.
 * Generate explicit primary joins. I deal with pretty complicated tables that need explicit primary joins.
