@@ -527,7 +527,7 @@ class CodeGenerator(object):
 
     def __init__(self, metadata, noindexes=False, noconstraints=False,
                  nojoined=False, noinflect=False, nobackrefs=False,
-                 flask=False, fkcols=None):
+                 flask=False, ignore_cols=None):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -537,7 +537,7 @@ class CodeGenerator(object):
             inflect_engine = inflect.engine()
 
         # exclude these column names from consideration when generating association tables
-        _special_columns = fkcols or []
+        _ignore_columns = ignore_cols or []
         
         self.flask = flask
         if not self.flask:
@@ -551,7 +551,7 @@ class CodeGenerator(object):
             # Link tables have exactly two foreign key constraints and all columns are involved in them
             # except for special columns like id, inserted, and updated
             fk_constraints = [constr for constr in table.constraints if isinstance(constr, ForeignKeyConstraint)]
-            if len(fk_constraints) == 2 and all(col.foreign_keys for col in table.columns if col.name not in _special_columns):
+            if len(fk_constraints) == 2 and all(col.foreign_keys for col in table.columns if col.name not in _ignore_columns):
                 association_tables.add(table.name)
                 tablename = sorted(fk_constraints, key=_get_constraint_sort_key)[0].elements[0].column.table.name
                 links[tablename].append(table)
