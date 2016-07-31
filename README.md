@@ -1,5 +1,4 @@
-flask-sqlacodegen
-=================
+# flask-sqlacodegen
 
 GitHub page: [flask-sqlacodegen](https://github.com/ksindi/flask-sqlacodegen) 
 
@@ -7,13 +6,13 @@ Fork of [sqlacodegen](https://pypi.python.org/pypi/sqlacodegen) by Alex Gronholm
 
 What's different:
 
-* Support for Flask-SQLAlchemy syntax using `--flask` option:
+* Support for Flask-SQLAlchemy syntax using `--flask` option.
 * Defaults to generating backrefs in relationships. `--nobackref` still included as option in case backrefs are not wanted. 
-* Naming of backrefs is class name in snake_case (as opposed to CamelCase) and is pluralized if it's Many-to-One or Many-to-Many using <a href="https://pypi.python.org/pypi/inflect">inflect</a>.
-* Generate explicit primary joins. I deal with pretty complicated tables that need explicit primary joins.
+* Naming of backrefs is class name in snake_case (as opposed to CamelCase) and is pluralized if it's Many-to-One or Many-to-Many using [inflect](https://pypi.python.org/pypi/inflect).
+* Primary joins are explicit.
 * If column has a server_default set it to `FetchValue()` instead of trying to determine what that value is. Original code did not set the right server defaults in my setup.
 * `--ignore-cols` ignores special columns when generating association tables. Original code requires all columns to be foreign keys in order to generate association table. Example: `--ignore-cols id,inserted,updated`.
-* Use the command `flask-sqlacodgen` instead of `sqlacodegen`.
+* Uses the command `flask-sqlacodgen` instead of `sqlacodegen`.
 
 ## Install
 
