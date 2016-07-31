@@ -44,7 +44,7 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5'
     ],
-    keywords=['sqlalchemy', 'flask-sqlacodegen', 'sqlacodegen'],
+    keywords=['sqlalchemy', 'sqlacodegen', 'flask'],
     license='MIT',
     packages=find_packages(exclude=['tests']),
     install_requires=(
