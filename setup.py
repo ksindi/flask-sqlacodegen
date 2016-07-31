@@ -25,7 +25,7 @@ if sys.version_info < (2, 7):
 setup(
     name='flask-sqlacodegen',
     description='Automatic model code generator for SQLAlchemy with Flask support',
-    long_description=open('README.md').read(),
+    long_description=open('README.rst').read(),
     version=sqlacodegen.version,
     author='Kamil Sindi',
     classifiers=[
