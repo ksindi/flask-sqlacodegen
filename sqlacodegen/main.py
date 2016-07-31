@@ -36,7 +36,7 @@ def main():
     parser.add_argument('--outfile', help='file to write output to (default: stdout)')
     parser.add_argument('--nobackrefs', action='store_true', help="don't include backrefs")
     parser.add_argument('--flask', action='store_true', help="use Flask-SQLAlchemy columns")
-    parser.add_argument('--ignore-cols', help="Don't check fk constraints on specified columns (comma-separated)")
+    parser.add_argument('--ignore-cols', help="Don't check foreign key constraints on specified columns (comma-separated)")
     args = parser.parse_args()
 
     if args.version:

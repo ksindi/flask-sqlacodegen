@@ -1,5 +1,4 @@
 import sys
-import os.path
 
 from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
@@ -23,17 +22,12 @@ extra_requirements = ()
 if sys.version_info < (2, 7):
     extra_requirements = ('argparse',)
 
-here = os.path.dirname(__file__)
-readme_path = os.path.join(here, 'README.rst')
-readme = open(readme_path).read()
-
 setup(
-    name='sqlacodegen',
-    description='Automatic model code generator for SQLAlchemy',
-    long_description=readme,
+    name='flask-sqlacodegen',
+    description='Automatic model code generator for SQLAlchemy with Flask support',
+    long_description=open('README.md').read(),
     version=sqlacodegen.version,
     author='Kamil Sindi',
-    author_email='kysindi@gmail.com',
     classifiers=[
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Developers',
@@ -46,9 +40,11 @@ setup(
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.2',
-        'Programming Language :: Python :: 3.3'
+        'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5'
     ],
-    keywords='sqlalchemy',
+    keywords=['sqlalchemy', 'flask-sqlacodegen', 'sqlacodegen'],
     license='MIT',
     packages=find_packages(exclude=['tests']),
     install_requires=(
@@ -60,7 +56,7 @@ setup(
     zip_safe=False,
     entry_points={
         'console_scripts': [
-            'sqlacodegen=sqlacodegen.main:main'
+            'flask-sqlacodegen=sqlacodegen.main:main'
         ]
     }
 )

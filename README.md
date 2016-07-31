@@ -1,7 +1,7 @@
 flask-sqlacodegen
 =================
 
-Fork from <a href="https://pypi.python.org/pypi/sqlacodegen">sqlacodegen</a>. Based off of version 1.1.6.
+Fork of <a href="https://pypi.python.org/pypi/sqlacodegen">sqlacodegen</a>. Based off of version 1.1.6.
 
 What's different:
 * Support for Flask-SQLAlchemy syntax using `--flask` option. All this means:
@@ -13,3 +13,14 @@ What's different:
 * Generate explicit primary joins. I deal with pretty complicated tables that need explicit primary joins.
 * If column has a server_default set it to `FetchValue()` instead of trying to determine what that value is. Original code did not set the right server defaults in my set up.
 * `--ignore-cols` ignores special columns (e.g. id, inserted, updated) when generating association tables. Original code requires all columns to be foreign keys in order to generate association table. Example: `--ignore-cols id,inserted,updated`.
+
+## Install
+
+Note: planning to upload to pip. In the meantime, use the without pip option.
+
+Without pip:
+```
+git clone https://github.com/ksindi/flask-sqlacodegen.git
+cd flask-sqlacodegen/
+python setup.py install
+```
