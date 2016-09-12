@@ -56,5 +56,9 @@ def main():
     outfile = codecs.open(args.outfile, 'w', encoding='utf-8') if args.outfile else sys.stdout
     generator = CodeGenerator(metadata, args.noindexes, args.noconstraints,
                               args.nojoined, args.noinflect, args.nobackrefs,
-                              args.flask, ignore_cols)
+                              args.flask, ignore_cols, args.noclasses)
     generator.render(outfile)
+
+
+if __name__ == '__main__':
+    main()

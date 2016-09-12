@@ -527,7 +527,7 @@ class CodeGenerator(object):
 
     def __init__(self, metadata, noindexes=False, noconstraints=False,
                  nojoined=False, noinflect=False, nobackrefs=False,
-                 flask=False, ignore_cols=None):
+                 flask=False, ignore_cols=None, noclasses=False):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -600,9 +600,9 @@ class CodeGenerator(object):
                                 continue
 
             # Only form model classes for tables that have a primary key and are not association tables
-            if not table.primary_key or table.name in association_tables:
+            if not table.primary_key or table.name in association_tables or noclasses:
                 model = ModelTable(table)
-            else:
+            elif not noclasses:
                 model = ModelClass(table, links[table.name], inflect_engine, not nojoined)
                 classes[model.name] = model
 
