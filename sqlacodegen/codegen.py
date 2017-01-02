@@ -47,7 +47,14 @@ class _DummyInflectEngine(object):
         return inflect_engine.plural_noun(noun)
 
 
-# In SQLAlchemy 0.x, constraint.columns is sometimes a list, on 1.x onwards, always a ColumnCollection
+def inflect_engine_factory(noinflect=True):
+    if noinflect:
+        return _DummyInflectEngine()
+    return inflect.engine()
+
+
+# In SQLAlchemy 0.x, constraint.columns is sometimes a list, on 1.x onwards
+# always a ColumnCollection
 def _get_column_names(constraint):
     if isinstance(constraint.columns, list):
         return constraint.columns
@@ -62,7 +69,7 @@ def _convert_to_valid_identifier(name):
 
 
 def _get_compiled_expression(statement):
-    """Returns the statement in a form where any placeholders have been filled in."""
+    """Returns statement in a form where any placeholders are filled in."""
     if isinstance(statement, TextClause):
         return statement.text
 
@@ -88,7 +95,7 @@ def _get_constraint_sort_key(constraint):
 
 
 def _get_common_fk_constraints(table1, table2):
-    """Returns a set of foreign key constraints the two tables have against each other."""
+    """Returns set of foreign key constraints between two tables."""
     c1 = set(c for c in table1.constraints if isinstance(c, ForeignKeyConstraint) and
              c.elements[0].column.table == table2)
     c2 = set(c for c in table2.constraints if isinstance(c, ForeignKeyConstraint) and
@@ -123,7 +130,8 @@ class Model(object):
         self.table = table
         self.schema = table.schema
 
-        # Adapt column types to the most reasonable generic types (ie. VARCHAR -> String)
+        # Adapt column types to the most reasonable generic type
+        #  (ie. VARCHAR -> String)
         for column in table.columns:
             cls = column.type.__class__
             for supercls in cls.__mro__:
@@ -264,7 +272,8 @@ class ManyToOneRelationship(Relationship):
             self.kwargs['remote_side'] = '[{0}]'.format(', '.join(pk_col_names))
 
         # If the two tables share more than one foreign key constraint,
-        # SQLAlchemy needs an explicit primaryjoin to figure out which column(s) to join with
+        # SQLAlchemy needs an explicit primaryjoin to figure out which
+        # column(s) to join with
         common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
         if len(common_fk_constraints) > 1:
             self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, column_names[0], target_cls,
@@ -307,10 +316,12 @@ class CodeGenerator(object):
 
 {models}"""
 
-    def __init__(self, metadata, noindexes=False, noconstraints=False, nojoined=False, noinflect=False,
-                 noclasses=False, indentation='    ', model_separator='\n\n',
-                 ignored_tables=('alembic_version', 'migrate_version'), table_model=ModelTable, class_model=ModelClass,
-                 template=None):
+    def __init__(self, metadata, noindexes=False, noconstraints=False,
+                 nojoined=False, noinflect=False, noclasses=False,
+                 indentation='    ', model_separator='\n\n',
+                 ignored_tables=('alembic_version', 'migrate_version'),
+                 table_model=ModelTable, class_model=ModelClass, template=None,
+                 **kw):
         super(CodeGenerator, self).__init__()
         self.metadata = metadata
         self.noindexes = noindexes
@@ -325,13 +336,15 @@ class CodeGenerator(object):
         self.class_model = class_model
         if template:
             self.template = template
-        self.inflect_engine = self.create_inflect_engine()
+        self.inflect_engine = inflect_engine_factory(noinflect)
 
-        # Pick association tables from the metadata into their own set, don't process them normally
+        # Pick association tables from the metadata into their own set, don't
+        # process them normally
         links = defaultdict(lambda: [])
         association_tables = set()
         for table in metadata.tables.values():
-            # Link tables have exactly two foreign key constraints and all columns are involved in them
+            # Link tables have exactly two foreign key constraints and all
+            # columns are involved in them
             fk_constraints = [constr for constr in table.constraints if isinstance(constr, ForeignKeyConstraint)]
             if len(fk_constraints) == 2 and all(col.foreign_keys for col in table.columns):
                 association_tables.add(table.name)
@@ -343,7 +356,8 @@ class CodeGenerator(object):
         self.collector = ImportCollector()
         classes = {}
         for table in sorted(metadata.tables.values(), key=lambda t: (t.schema or '', t.name)):
-            # Support for Alembic and sqlalchemy-migrate -- never expose the schema version tables
+            # Support for Alembic and sqlalchemy-migrate -- never expose the
+            # schema version tables
             if table.name in self.ignored_tables:
                 continue
 
@@ -351,7 +365,7 @@ class CodeGenerator(object):
                 table.indexes.clear()
 
             if noconstraints:
-                table.constraints = set([table.primary_key])
+                table.constraints = {table.primary_key}
                 table.foreign_keys.clear()
                 for col in table.columns:
                     col.foreign_keys.clear()
@@ -361,7 +375,8 @@ class CodeGenerator(object):
                     if isinstance(constraint, CheckConstraint):
                         sqltext = _get_compiled_expression(constraint.sqltext)
 
-                        # Turn any integer-like column with a CheckConstraint like "column IN (0, 1)" into a Boolean
+                        # Turn any integer-like column with a CheckConstraint
+                        # like "column IN (0, 1)" into a Boolean
                         match = _re_boolean_check_constraint.match(sqltext)
                         if match:
                             colname = _re_column_name.match(match.group(1)).group(3)
@@ -369,7 +384,8 @@ class CodeGenerator(object):
                             table.c[colname].type = Boolean()
                             continue
 
-                        # Turn any string-type column with a CheckConstraint like "column IN (...)" into an Enum
+                        # Turn any string-type column with a CheckConstraint
+                        # like "column IN (...)" into an Enum
                         match = _re_enum_check_constraint.match(sqltext)
                         if match:
                             colname = _re_column_name.match(match.group(1)).group(3)
@@ -381,7 +397,8 @@ class CodeGenerator(object):
                                     table.c[colname].type = Enum(*options, native_enum=False)
                                 continue
 
-            # Only form model classes for tables that have a primary key and are not association tables
+            # Only form model classes for tables that have a primary key and
+            # are not association tables
             if noclasses or not table.primary_key or table.name in association_tables:
                 model = self.table_model(table)
             else:
@@ -397,18 +414,12 @@ class CodeGenerator(object):
                 classes[model.parent_name].children.append(model)
                 self.models.remove(model)
 
-        # Add either the MetaData or declarative_base import depending on whether there are mapped classes or not
+        # Add either the MetaData or declarative_base import depending on
+        # whether there are mapped classes or not
         if not any(isinstance(model, self.class_model) for model in self.models):
             self.collector.add_literal_import('sqlalchemy', 'MetaData')
         else:
             self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
-
-    def create_inflect_engine(self):
-        if self.noinflect:
-            return _DummyInflectEngine()
-        else:
-            import inflect
-            return inflect.engine()
 
     def render_imports(self):
         return '\n'.join('from {0} import {1}'.format(package, ', '.join(sorted(names)))
@@ -488,13 +499,14 @@ class CodeGenerator(object):
         kwarg = []
         is_sole_pk = column.primary_key and len(column.table.primary_key) == 1
         dedicated_fks = [c for c in column.foreign_keys if len(c.constraint.columns) == 1]
-        is_unique = any(isinstance(c, UniqueConstraint) and set(c.columns) == set([column])
+        is_unique = any(isinstance(c, UniqueConstraint) and set(c.columns) == {column}
                         for c in column.table.constraints)
-        is_unique = is_unique or any(i.unique and set(i.columns) == set([column]) for i in column.table.indexes)
-        has_index = any(set(i.columns) == set([column]) for i in column.table.indexes)
+        is_unique = is_unique or any(i.unique and set(i.columns) == {column} for i in column.table.indexes)
+        has_index = any(set(i.columns) == {column} for i in column.table.indexes)
         server_default = None
 
-        # Render the column type if there are no foreign keys on it or any of them points back to itself
+        # Render the column type if there are no foreign keys on it or any of
+        # them points back to itself
         render_coltype = not dedicated_fks or any(fk.column is column for fk in dedicated_fks)
 
         if column.key != column.name:

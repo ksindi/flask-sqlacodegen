@@ -74,6 +74,5 @@ def main():
     metadata.reflect(engine, args.schema, not args.noviews, tables)
     outfile = (codecs.open(args.outfile, 'w', encoding='utf-8')
                if args.outfile else sys.stdout)
-    generator = CodeGenerator(metadata, args.noindexes, args.noconstraints,
-                              args.nojoined, args.noinflect, args.noclasses)
+    generator = CodeGenerator(**vars(args))
     generator.render(outfile)

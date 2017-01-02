@@ -17,15 +17,15 @@ setup(
     keywords=['sqlalchemy', 'sqlacodegen', 'flask'],
     license='MIT',
     packages=find_packages(exclude=['tests']),
+    install_requires=(
+        'SQLAlchemy >= 0.6.0',
+        'inflect >= 0.2.0',
+    ),
     setup_requires=[
         'pytest-runner',
         'setuptools_scm >= 1.15.0',
         'sphinx_rtd_theme',
     ],
-    install_requires=(
-        'SQLAlchemy >= 0.6.0',
-        'inflect >= 0.2.0',
-    ),
     tests_require=[
         'pytest',
         'pytest-flake8',
