@@ -9,12 +9,13 @@ from inspect import ArgSpec
 from keyword import iskeyword
 from collections import defaultdict
 
+import inflect
 import sqlalchemy
-from sqlalchemy import (Enum, ForeignKeyConstraint, PrimaryKeyConstraint,
-                        CheckConstraint, UniqueConstraint, Table, Column)
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.util import OrderedDict
 from sqlalchemy.types import Boolean, String
+from sqlalchemy import (Enum, ForeignKeyConstraint, PrimaryKeyConstraint,
+                        CheckConstraint, UniqueConstraint, Table, Column)
 
 try:
     from sqlalchemy.sql.expression import TextClause
@@ -36,14 +37,12 @@ _flask_prepend = 'db.'
 
 
 class _DummyInflectEngine(object):
-
     @staticmethod
     def singular_noun(noun):
         return noun
 
     @staticmethod
-    def plural_noun(noun):  # needed for backrefs
-        import inflect
+    def plural_noun(noun):
         inflect_engine = inflect.engine()
         return inflect_engine.plural_noun(noun)
 
@@ -56,7 +55,7 @@ def _get_column_names(constraint):
 
 
 def _convert_to_valid_identifier(name):
-    assert name, 'Identifier cannot be empty'
+    assert name, "Identifier cannot be empty"
     if name[0].isdigit() or iskeyword(name):
         name = '_' + name
     return _re_invalid_identifier.sub('_', name)

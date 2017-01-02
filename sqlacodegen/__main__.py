@@ -17,7 +17,7 @@ Prompt parameters:
   version (-v):     print the version number and exit
 
 Usage:
-  flask-sqlacodegen mysql+oursql://uname:passwd@localhost/dbname --flask
+  flask-sqlacodegen mysql+musqldb://uname:passwd@localhost/dbname --flask
 """
 from __future__ import unicode_literals, print_function, absolute_import
 
@@ -27,8 +27,8 @@ import logging
 import pkg_resources
 from argparse import RawDescriptionHelpFormatter, ArgumentParser
 
-from sqlalchemy.engine import create_engine
 from sqlalchemy.schema import MetaData
+from sqlalchemy.engine import create_engine
 
 from sqlacodegen.codegen import CodeGenerator
 
@@ -39,7 +39,7 @@ LOGFORMAT = '%(asctime)s %(name)-12s %(levelname)-8s %(message)s'
 def create_parser():
     parser = ArgumentParser(description=__doc__,
                             formatter_class=RawDescriptionHelpFormatter)
-    parser.add_argument('url', nargs='?', required=True)
+    parser.add_argument('url', metavar='DATABASE_URL')
     parser.add_argument('--noviews', action='store_true')
     parser.add_argument('--noindexes', action='store_true')
     parser.add_argument('--noconstraints', action='store_true')

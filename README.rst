@@ -38,6 +38,13 @@ Install
 
     pip install flask-sqlacodegen
 
+Usage
+-----
+
+::
+
+    flask-sqlacodegen mysql+musqldb://uname:passwd@localhost/dbname --flask
+
 Testing
 -------
 
