@@ -5,7 +5,7 @@ GitHub page:
 `flask-sqlacodegen <https://github.com/ksindi/flask-sqlacodegen>`__
 
 Fork of `sqlacodegen <https://pypi.python.org/pypi/sqlacodegen>`__ by
-Alex Gronholm. Based off of version 1.1.6.
+Alex Gronholm. Based off of version 2.0.0.
 
 What's different:
 
@@ -25,20 +25,22 @@ What's different:
    ``--ignore-cols id,inserted,updated``.
 -  Uses the command ``flask-sqlacodgen`` instead of ``sqlacodegen``.
 
+
 Install
 -------
 
-With pip:
+::
+
+    pip install sparksteps
+
+Testing
+-------
 
 ::
 
-    pip install flask-sqlacodegen
+    make test
 
-Without pip:
+License
+-------
 
-::
-
-    git clone https://github.com/ksindi/flask-sqlacodegen.git
-    cd flask-sqlacodegen/
-    python setup.py install
-
+MIT
