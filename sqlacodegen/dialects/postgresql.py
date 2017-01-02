@@ -1,15 +1,14 @@
-"""
-Provides missing Postgresql types.
+# -*- coding: utf-8 -*-
+"""Provides missing Postgresql types.
 
 Use GeoAlchemy2 to support Postgis types.
 Implement mockups for Point and LTree type, but generated models won't work out
 of the box: a better way would be to use a package implementing proper classes
 which could be imported in the target project.
-
 """
 
-from sqlalchemy.dialects.postgresql.base import ischema_names, PGTypeCompiler
 from sqlalchemy import types as sqltypes
+from sqlalchemy.dialects.postgresql.base import ischema_names, PGTypeCompiler
 
 try:
     import geoalchemy2

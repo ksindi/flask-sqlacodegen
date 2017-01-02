@@ -1,14 +1,18 @@
+# -*- coding: utf-8 -*-
 from __future__ import unicode_literals, division, print_function, absolute_import
-from io import StringIO
-import sys
+
 import re
+import io
+import sys
 
 from sqlalchemy.engine import create_engine
-from sqlalchemy.schema import (MetaData, Table, Column, CheckConstraint, UniqueConstraint, Index, ForeignKey,
+from sqlalchemy.schema import (MetaData, Table, Column, CheckConstraint,
+                               UniqueConstraint, Index, ForeignKey,
                                ForeignKeyConstraint)
 from sqlalchemy.sql.expression import text
 from sqlalchemy.types import INTEGER, SMALLINT, VARCHAR, NUMERIC
-from sqlalchemy.dialects.postgresql.base import BIGINT, DOUBLE_PRECISION, BOOLEAN, ENUM
+from sqlalchemy.dialects.postgresql.base import (BIGINT, DOUBLE_PRECISION,
+                                                 BOOLEAN, ENUM)
 from sqlalchemy.dialects.mysql.base import TINYINT
 from sqlalchemy.dialects.mysql import base as mysql
 
@@ -31,7 +35,7 @@ class TestModelGenerator(object):
 
     def generate_code(self, **kwargs):
         codegen = CodeGenerator(self.metadata, **kwargs)
-        sio = StringIO()
+        sio = io.StringIO()
         codegen.render(sio)
         return remove_unicode_prefixes(sio.getvalue())
 

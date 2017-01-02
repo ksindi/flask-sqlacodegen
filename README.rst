@@ -1,8 +1,13 @@
-flask-sqlacodegen
-=================
+Flask Sqlacodegen: SQLAlchemy Model Generator
+=============================================
 
-GitHub page:
-`flask-sqlacodegen <https://github.com/ksindi/flask-sqlacodegen>`__
+.. image:: https://travis-ci.org/ksindi/flask-sqlacodegen.svg?branch=master
+    :target: https://travis-ci.org/ksindi/flask-sqlacodegen
+    :alt: Build Status
+
+.. image:: https://readthedocs.org/projects/flask-sqlacodegen/badge/?version=latest
+    :target: http://flask-sqlacodegen.readthedocs.io/en/latest/?badge=latest
+    :alt: Documentation Status
 
 Fork of `sqlacodegen <https://pypi.python.org/pypi/sqlacodegen>`__ by
 Alex Gronholm. Based off of version 2.0.0.
@@ -31,7 +36,7 @@ Install
 
 ::
 
-    pip install sparksteps
+    pip install flask-sqlacodegen
 
 Testing
 -------

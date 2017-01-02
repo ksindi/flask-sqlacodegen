@@ -40,10 +40,6 @@ def create_parser():
     parser = ArgumentParser(description=__doc__,
                             formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('url', nargs='?', required=True)
-    parser.add_argument('--version', '-v', action='store_true')
-    parser.add_argument('--schema')
-    parser.add_argument('--tables', '-t')
-
     parser.add_argument('--noviews', action='store_true')
     parser.add_argument('--noindexes', action='store_true')
     parser.add_argument('--noconstraints', action='store_true')
@@ -51,6 +47,9 @@ def create_parser():
     parser.add_argument('--noinflect', action='store_true')
     parser.add_argument('--noclasses', action='store_true')
     parser.add_argument('--outfile', '-o')
+    parser.add_argument('--schema')
+    parser.add_argument('--tables', '-t')
+    parser.add_argument('--version', '-v', action='store_true')
     return parser
 
 
@@ -64,7 +63,8 @@ def main():
     logger.setLevel(numeric_level)
 
     if args.version:
-        version = pkg_resources.get_distribution('sqlacodegen').parsed_version
+        pkg_name = 'flask-sqlacodegen'
+        version = pkg_resources.get_distribution(pkg_name).parsed_version
         logger.info(version.public)
         return
 

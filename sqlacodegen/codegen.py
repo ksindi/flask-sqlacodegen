@@ -22,17 +22,30 @@ except ImportError:
     # SQLAlchemy < 0.8
     from sqlalchemy.sql.expression import _TextClause as TextClause
 
+IS_PY2 = sys.version_info[0] < 3
+
 _re_boolean_check_constraint = re.compile(r"(?:(?:.*?)\.)?(.*?) IN \(0, 1\)")
 _re_column_name = re.compile(r'(?:(["`]?)(?:.*)\1\.)?(["`]?)(.*)\2')
 _re_enum_check_constraint = re.compile(r"(?:(?:.*?)\.)?(.*?) IN \((.+)\)")
 _re_enum_item = re.compile(r"'(.*?)(?<!\\)'")
-_re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 else r'(?u)\W')
+_re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if IS_PY2 else r'(?u)\W')
+_re_first_cap = re.compile("(.)([A-Z][a-z]+)")
+_re_all_cap = re.compile("([a-z0-9])([A-Z])")
+
+_flask_prepend = 'db.'
 
 
 class _DummyInflectEngine(object):
+
     @staticmethod
     def singular_noun(noun):
         return noun
+
+    @staticmethod
+    def plural_noun(noun):  # needed for backrefs
+        import inflect
+        inflect_engine = inflect.engine()
+        return inflect_engine.plural_noun(noun)
 
 
 # In SQLAlchemy 0.x, constraint.columns is sometimes a list, on 1.x onwards, always a ColumnCollection
