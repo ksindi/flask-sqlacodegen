@@ -4,6 +4,9 @@
 
 Prompt parameters:
   url:              SQLAlchemy url to the database
+  fetched-value:    use FetchValue for columns with server default
+  flask:            use Flask SQLAclhemy for model generation
+  ignore-cols:      don't check foreign key constraints on specified columns
   log-level (-l)    logging level (default=INFO)
   noclasses:        don't generate classes, only tables
   noconstraints:    ignore constraints
@@ -17,18 +20,17 @@ Prompt parameters:
   version (-v):     print the version number and exit
 
 Usage:
-  flask-sqlacodegen mysql+musqldb://uname:passwd@localhost/dbname --flask
+  flask-sqlacodegen mysql+mysqldb://uname:passwd@localhost/dbname --flask
 """
 from __future__ import unicode_literals, print_function, absolute_import
 
-import sys
-import codecs
 import logging
-import pkg_resources
-from argparse import RawDescriptionHelpFormatter, ArgumentParser
+import sys
+from argparse import RawDescriptionHelpFormatter, ArgumentParser, FileType
 
-from sqlalchemy.schema import MetaData
+import pkg_resources
 from sqlalchemy.engine import create_engine
+from sqlalchemy.schema import MetaData
 
 from sqlacodegen.codegen import CodeGenerator
 
@@ -40,15 +42,20 @@ def create_parser():
     parser = ArgumentParser(description=__doc__,
                             formatter_class=RawDescriptionHelpFormatter)
     parser.add_argument('url', metavar='DATABASE_URL')
+    parser.add_argument('--fetched-value', action='store_true')
+    parser.add_argument('--flask', action='store_true')
+    parser.add_argument('--ignore-cols', nargs='*')
+    parser.add_argument('--log-level', '-l', type=str.upper, default='INFO')
     parser.add_argument('--noviews', action='store_true')
     parser.add_argument('--noindexes', action='store_true')
     parser.add_argument('--noconstraints', action='store_true')
     parser.add_argument('--nojoined', action='store_true')
     parser.add_argument('--noinflect', action='store_true')
     parser.add_argument('--noclasses', action='store_true')
-    parser.add_argument('--outfile', '-o')
+    parser.add_argument('--outfile', '-o', nargs='?', type=FileType('w'),
+                        default=sys.stdout)
     parser.add_argument('--schema')
-    parser.add_argument('--tables', '-t')
+    parser.add_argument('--tables', '-t', nargs='*')
     parser.add_argument('--version', '-v', action='store_true')
     return parser
 
@@ -70,9 +77,6 @@ def main():
 
     engine = create_engine(args.url)
     metadata = MetaData(engine)
-    tables = args.tables.split(',') if args.tables else None
-    metadata.reflect(engine, args.schema, not args.noviews, tables)
-    outfile = (codecs.open(args.outfile, 'w', encoding='utf-8')
-               if args.outfile else sys.stdout)
+    metadata.reflect(engine, args.schema, not args.noviews, args.tables)
     generator = CodeGenerator(**vars(args))
-    generator.render(outfile)
+    generator.render(args.outfile)

@@ -5,6 +5,7 @@ from __future__ import unicode_literals, print_function, absolute_import
 import re
 import io
 import sys
+import shlex
 
 import pytest
 from sqlalchemy.engine import create_engine
@@ -18,7 +19,8 @@ from sqlalchemy.dialects.postgresql.base import (BIGINT, DOUBLE_PRECISION,
 from sqlalchemy.dialects.mysql.base import TINYINT
 from sqlalchemy.dialects.mysql import base as mysql
 
-from sqlacodegen.codegen import CodeGenerator
+from sqlacodegen import __main__
+from sqlacodegen import codegen
 
 IS_PY2 = sys.version_info < (3,)
 
@@ -35,10 +37,10 @@ def metadata(request):
     return MetaData(create_engine('sqlite:///'))
 
 
-def generate_code(metadata, **kwargs):
-    codegen = CodeGenerator(metadata, **kwargs)
+def generate_code(meta, **kwargs):
+    code_generator = codegen.CodeGenerator(meta, **kwargs)
     sio = io.StringIO()
-    codegen.render(sio)
+    code_generator.render(sio)
     return remove_unicode_prefixes(sio.getvalue())
 
 
@@ -353,7 +355,7 @@ class SimpleItem(Base):
     id = Column(Integer, primary_key=True)
     container_id = Column(ForeignKey('simple_containers.id'))
 
-    container = relationship('SimpleContainer')
+    container = relationship('SimpleContainer', primaryjoin='SimpleItem.container_id == SimpleContainer.id')
 """
 
 
@@ -381,7 +383,7 @@ class SimpleItem(Base):
     id = Column(Integer, primary_key=True)
     parent_item_id = Column(ForeignKey('simple_items.id'))
 
-    parent_item = relationship('SimpleItem', remote_side=[id])
+    parent_item = relationship('SimpleItem', remote_side=[id], primaryjoin='SimpleItem.parent_item_id == SimpleItem.id')
 """
 
 
@@ -460,8 +462,8 @@ ondelete='CASCADE', onupdate='CASCADE'),
     container_id1 = Column(Integer)
     container_id2 = Column(Integer)
 
-    simple_container = relationship('SimpleContainer')
-"""
+    simple_container = relationship('SimpleContainer', primaryjoin='and_(SimpleItem.container_id1 == SimpleContainer.id1, SimpleItem.container_id2 == SimpleContainer.id2)')
+"""  # NOQA: E501
 
 
 def test_onetomany_multiref(metadata):
@@ -542,7 +544,7 @@ class SimpleItem(Base):
     id = Column(Integer, primary_key=True)
     other_item_id = Column(ForeignKey('other_items.id'), unique=True)
 
-    other_item = relationship('OtherItem', uselist=False)
+    other_item = relationship('OtherItem', uselist=False, primaryjoin='SimpleItem.other_item_id == OtherItem.id')
 """
 
 
@@ -580,7 +582,7 @@ class Oglkrogk(Base):
     id = Column(Integer, primary_key=True)
     fehwiuhfiwID = Column(ForeignKey('fehwiuhfiw.id'))
 
-    fehwiuhfiw = relationship('Fehwiuhfiw')
+    fehwiuhfiw = relationship('Fehwiuhfiw', primaryjoin='Oglkrogk.fehwiuhfiwID == Fehwiuhfiw.id')
 """
 
 
@@ -978,7 +980,7 @@ class SimpleItem(Base):
     id = Column(Integer, primary_key=True)
     other_item_id = Column(ForeignKey('otherschema.other_items.id'))
 
-    other_item = relationship('OtherItem')
+    other_item = relationship('OtherItem', primaryjoin='SimpleItem.other_item_id == OtherItem.id')
 
 
 class OtherItem(Base):
@@ -1152,4 +1154,104 @@ class CustomerAPIPreference(Base):
     __tablename__ = 'customer_API__Preference'
 
     id = Column(Integer, primary_key=True)
+"""
+
+
+def test_flask(metadata):
+    Table(
+        'simple_items', metadata,
+        Column('id', INTEGER, primary_key=True),
+        Column('container_id', INTEGER),
+        ForeignKeyConstraint(['container_id'], ['simple_containers.id']),
+    )
+    Table(
+        'simple_containers', metadata,
+        Column('id', INTEGER, primary_key=True)
+    )
+
+    assert generate_code(metadata, flask=True) == """\
+# coding: utf-8
+from sqlalchemy import Column, ForeignKey, Integer
+from sqlalchemy.orm import relationship
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
+
+class SimpleContainer(db.Model):
+    __tablename__ = 'simple_containers'
+
+    id = db.Column(db.Integer, primary_key=True)
+
+
+class SimpleItem(db.Model):
+    __tablename__ = 'simple_items'
+
+    id = db.Column(db.Integer, primary_key=True)
+    container_id = db.Column(db.ForeignKey('simple_containers.id'))
+
+    container = db.relationship('SimpleContainer', primaryjoin='SimpleItem.container_id == SimpleContainer.id')
+"""
+
+
+def test_parser():
+    parser = __main__.create_parser()
+    cmd_args_str = """mysql+mysqldb://uname:passwd@localhost/dbname \
+      --ignore-cols id inserted updated
+      --tables Table1 Table2
+      --outfile model.py
+      --flask \
+    """
+    args = parser.parse_args(shlex.split(cmd_args_str))
+    print(args)
+    print(args.outfile)
+    assert args.ignore_cols == ['id', 'inserted', 'updated']
+    assert args.tables == ['Table1', 'Table2']
+
+
+def test_pk_fetched_value(metadata):
+    Table(
+        'simple_items', metadata,
+        Column('id', INTEGER, primary_key=True, server_default=text('uuid_generate_v4()'))
+    )
+
+    assert generate_code(metadata, fetched_value=True) == """\
+# coding: utf-8
+from sqlalchemy import Column, Integer, text
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+metadata = Base.metadata
+
+
+class SimpleItem(Base):
+    __tablename__ = 'simple_items'
+
+    id = Column(Integer, primary_key=True, server_default=text("uuid_generate_v4()"))
+"""
+
+
+def test_server_default_non_pk_fetched_value(metadata):
+    Table(
+        'simple_items', metadata,
+        Column('id', primary_key=True),
+        Column('name', VARCHAR, server_default=text("Some text"))
+    )
+
+    assert generate_code(metadata, fetched_value=True) == """\
+# coding: utf-8
+from sqlalchemy import Column, String, text
+from sqlalchemy.sql.sqltypes import NullType
+from sqlalchemy.schema import FetchedValue
+from sqlalchemy.ext.declarative import declarative_base
+
+Base = declarative_base()
+metadata = Base.metadata
+
+
+class SimpleItem(Base):
+    __tablename__ = 'simple_items'
+
+    id = Column(NullType, primary_key=True)
+    name = Column(String, server_default=FetchedValue())
 """

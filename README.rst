@@ -10,25 +10,24 @@ Flask Sqlacodegen: SQLAlchemy Model Generator
     :alt: Documentation Status
 
 Fork of `sqlacodegen <https://pypi.python.org/pypi/sqlacodegen>`__ by
-Alex Gronholm. Based off of version 2.0.0.
+Alex Gronholm.
 
 What's different:
 
 -  Support for Flask-SQLAlchemy syntax using ``--flask`` option.
--  Defaults to generating backrefs in relationships. ``--nobackref``
-   still included as option in case backrefs are not wanted.
+-  Defaults to generating backrefs in relationships.
 -  Naming of backrefs is class name in snake\_case (as opposed to
    CamelCase) and is pluralized if it's Many-to-One or Many-to-Many
    using `inflect <https://pypi.python.org/pypi/inflect>`__.
 -  Primary joins are explicit.
--  If column has a server\_default set it to ``FetchValue()`` instead of
+-  If column has a server\_default set it to ``FetchedValue()`` instead of
    trying to determine what that value is. Original code did not set the
    right server defaults in my setup.
 -  ``--ignore-cols`` ignores special columns when generating association
    tables. Original code requires all columns to be foreign keys in
    order to generate association table. Example:
-   ``--ignore-cols id,inserted,updated``.
--  Uses the command ``flask-sqlacodgen`` instead of ``sqlacodegen``.
+   ``--ignore-cols id inserted updated``.
+-  Uses the command ``flask-sqlacodegen`` instead of ``sqlacodegen``.
 
 
 Install

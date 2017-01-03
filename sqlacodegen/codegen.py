@@ -24,6 +24,10 @@ except ImportError:
     from sqlalchemy.sql.expression import _TextClause as TextClause
 
 IS_PY2 = sys.version_info[0] < 3
+IGNORED_TABLES = {'alembic_version', 'migrate_version'}
+DDL_CONSTRAINTS = ['ondelete', 'onupdate', 'deferrable', 'initially', 'match']
+INDENTATION = '    '
+MODEL_SEPARATOR = '\n\n'
 
 _re_boolean_check_constraint = re.compile(r"(?:(?:.*?)\.)?(.*?) IN \(0, 1\)")
 _re_column_name = re.compile(r'(?:(["`]?)(?:.*)\1\.)?(["`]?)(.*)\2')
@@ -33,18 +37,13 @@ _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if IS_PY2 else r'(?u)\W')
 _re_first_cap = re.compile("(.)([A-Z][a-z]+)")
 _re_all_cap = re.compile("([a-z0-9])([A-Z])")
 
-_flask_prepend = 'db.'
+FLASK_PREPEND = 'db.'
 
 
 class _DummyInflectEngine(object):
     @staticmethod
     def singular_noun(noun):
         return noun
-
-    @staticmethod
-    def plural_noun(noun):
-        inflect_engine = inflect.engine()
-        return inflect_engine.plural_noun(noun)
 
 
 def inflect_engine_factory(noinflect=True):
@@ -78,10 +77,13 @@ def _get_compiled_expression(statement):
 
     # Adapted from http://stackoverflow.com/a/5698357/242021
     class LiteralCompiler(compiler.__class__):
-        def visit_bindparam(self, bindparam, within_columns_clause=False, literal_binds=False, **kwargs):
+        def visit_bindparam(self, bindparam, within_columns_clause=False,
+                            literal_binds=False, **kwargs):
             return super(LiteralCompiler, self).render_literal_bindparam(
-                bindparam, within_columns_clause=within_columns_clause,
-                literal_binds=literal_binds, **kwargs
+                bindparam,
+                within_columns_clause=within_columns_clause,
+                literal_binds=literal_binds,
+                **kwargs
             )
 
     compiler = LiteralCompiler(dialect, statement)
@@ -150,6 +152,8 @@ class Model(object):
             collector.add_import(column.type)
             if column.server_default:
                 collector.add_literal_import('sqlalchemy', 'text')
+                if not column.primary_key:
+                    collector.add_literal_import('sqlalchemy.schema', 'FetchedValue')
 
         for constraint in sorted(self.table.constraints, key=_get_constraint_sort_key):
             if isinstance(constraint, ForeignKeyConstraint):
@@ -214,7 +218,7 @@ class ModelClass(Model):
 
     @staticmethod
     def _convert_to_valid_identifier(name):
-        assert name, 'Identifier cannot be empty'
+        assert name, "Identifier cannot be empty"
         if name[0].isdigit() or iskeyword(name):
             name = '_' + name
         return _re_invalid_identifier.sub('_', name)
@@ -274,10 +278,17 @@ class ManyToOneRelationship(Relationship):
         # If the two tables share more than one foreign key constraint,
         # SQLAlchemy needs an explicit primaryjoin to figure out which
         # column(s) to join with
-        common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
-        if len(common_fk_constraints) > 1:
-            self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, column_names[0], target_cls,
-                                                                       constraint.elements[0].column.name)
+        if len(constraint.elements) > 1:
+            self.kwargs['primaryjoin'] = "'and_({0})'".format(
+                ', '.join(['{0}.{1} == {2}.{3}'
+                          .format(source_cls, elt.parent.name, target_cls, elt.column.name)
+                           for elt in constraint.elements])
+            )
+        else:
+            self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(
+                source_cls, column_names[0], target_cls,
+                constraint.elements[0].column.name
+            )
 
 
 class ManyToManyRelationship(Relationship):
@@ -316,11 +327,16 @@ class CodeGenerator(object):
 
 {models}"""
 
-    def __init__(self, metadata, noindexes=False, noconstraints=False,
-                 nojoined=False, noinflect=False, noclasses=False,
-                 indentation='    ', model_separator='\n\n',
-                 ignored_tables=('alembic_version', 'migrate_version'),
-                 table_model=ModelTable, class_model=ModelClass, template=None,
+    def __init__(self,
+                 metadata,
+                 noindexes=False,
+                 noconstraints=False,
+                 nojoined=False,
+                 noinflect=False,
+                 noclasses=False,
+                 template=None,
+                 flask=False,
+                 fetched_value=False,
                  **kw):
         super(CodeGenerator, self).__init__()
         self.metadata = metadata
@@ -329,13 +345,11 @@ class CodeGenerator(object):
         self.nojoined = nojoined
         self.noinflect = noinflect
         self.noclasses = noclasses
-        self.indentation = indentation
-        self.model_separator = model_separator
-        self.ignored_tables = ignored_tables
-        self.table_model = table_model
-        self.class_model = class_model
         if template:
             self.template = template
+        self.flask = flask
+        self._prepend = FLASK_PREPEND if flask else ''
+        self.fetched_value = fetched_value
         self.inflect_engine = inflect_engine_factory(noinflect)
 
         # Pick association tables from the metadata into their own set, don't
@@ -356,9 +370,9 @@ class CodeGenerator(object):
         self.collector = ImportCollector()
         classes = {}
         for table in sorted(metadata.tables.values(), key=lambda t: (t.schema or '', t.name)):
-            # Support for Alembic and sqlalchemy-migrate -- never expose the
+            # Support for Alembic and sqlalchemy-migrate -- never expose
             # schema version tables
-            if table.name in self.ignored_tables:
+            if table.name in IGNORED_TABLES:
                 continue
 
             if noindexes:
@@ -400,9 +414,9 @@ class CodeGenerator(object):
             # Only form model classes for tables that have a primary key and
             # are not association tables
             if noclasses or not table.primary_key or table.name in association_tables:
-                model = self.table_model(table)
+                model = ModelTable(table)
             else:
-                model = self.class_model(table, links[table.name], self.inflect_engine, not nojoined)
+                model = ModelClass(table, links[table.name], self.inflect_engine, not nojoined)
                 classes[model.name] = model
 
             self.models.append(model)
@@ -414,32 +428,43 @@ class CodeGenerator(object):
                 classes[model.parent_name].children.append(model)
                 self.models.remove(model)
 
-        # Add either the MetaData or declarative_base import depending on
-        # whether there are mapped classes or not
-        if not any(isinstance(model, self.class_model) for model in self.models):
-            self.collector.add_literal_import('sqlalchemy', 'MetaData')
+        if self.flask:
+            # Add Flask-SQLAlchemy support
+            self.collector.add_literal_import('flask_sqlalchemy', 'SQLAlchemy')
+            parent_name = 'db.Model'
+
+            for model in classes.values():
+                if model.parent_name == 'Base':
+                    model.parent_name = parent_name
         else:
-            self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
+            # Add either the MetaData or declarative_base import depending on
+            # whether there are mapped classes or not
+            if not any(isinstance(model, ModelClass) for model in self.models):
+                self.collector.add_literal_import('sqlalchemy', 'MetaData')
+            else:
+                self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
 
     def render_imports(self):
         return '\n'.join('from {0} import {1}'.format(package, ', '.join(sorted(names)))
                          for package, names in self.collector.items())
 
     def render_metadata_declarations(self):
-        if 'sqlalchemy.ext.declarative' in self.collector:
-            return 'Base = declarative_base()\nmetadata = Base.metadata'
-        return 'metadata = MetaData()'
+        if self.flask:
+            return 'db = SQLAlchemy()'
+        else:
+            if 'sqlalchemy.ext.declarative' in self.collector:
+                return 'Base = declarative_base()\nmetadata = Base.metadata'
+            return 'metadata = MetaData()'
 
-    @staticmethod
-    def render_column_type(coltype):
+    def render_column_type(self, col_type):
         args = []
-        if isinstance(coltype, Enum):
-            args.extend(repr(arg) for arg in coltype.enums)
-            if coltype.name is not None:
-                args.append('name={0!r}'.format(coltype.name))
+        if isinstance(col_type, Enum):
+            args.extend(repr(arg) for arg in col_type.enums)
+            if col_type.name is not None:
+                args.append('name={0!r}'.format(col_type.name))
         else:
             # All other types
-            argspec = _getargspec_init(coltype.__class__.__init__)
+            argspec = _getargspec_init(col_type.__class__.__init__)
             defaults = dict(zip(argspec.args[-len(argspec.defaults or ()):], argspec.defaults or ()))
             missing = object()
             use_kwargs = False
@@ -448,7 +473,7 @@ class CodeGenerator(object):
                 if attr.startswith('_'):
                     continue
 
-                value = getattr(coltype, attr, missing)
+                value = getattr(col_type, attr, missing)
                 default = defaults.get(attr, missing)
                 if value is missing or value == default:
                     use_kwargs = True
@@ -457,17 +482,16 @@ class CodeGenerator(object):
                 else:
                     args.append(repr(value))
 
-        rendered = coltype.__class__.__name__
+        rendered = self._prepend + col_type.__class__.__name__
         if args:
             rendered += '({0})'.format(', '.join(args))
 
         return rendered
 
-    @staticmethod
-    def render_constraint(constraint):
+    def render_constraint(self, constraint):
         def render_fk_options(*opts):
             opts = [repr(opt) for opt in opts]
-            for attr in 'ondelete', 'onupdate', 'deferrable', 'initially', 'match':
+            for attr in DDL_CONSTRAINTS:
                 value = getattr(constraint, attr, None)
                 if value:
                     opts.append('{0}={1!r}'.format(attr, value))
@@ -476,24 +500,23 @@ class CodeGenerator(object):
 
         if isinstance(constraint, ForeignKey):
             remote_column = '{0}.{1}'.format(constraint.column.table.fullname, constraint.column.name)
-            return 'ForeignKey({0})'.format(render_fk_options(remote_column))
+            return self._prepend + 'ForeignKey({0})'.format(render_fk_options(remote_column))
         elif isinstance(constraint, ForeignKeyConstraint):
             local_columns = _get_column_names(constraint)
             remote_columns = ['{0}.{1}'.format(fk.column.table.fullname, fk.column.name)
                               for fk in constraint.elements]
-            return 'ForeignKeyConstraint({0})'.format(render_fk_options(local_columns, remote_columns))
+            return self._prepend + 'ForeignKeyConstraint({0})'.format(render_fk_options(local_columns, remote_columns))
         elif isinstance(constraint, CheckConstraint):
-            return 'CheckConstraint({0!r})'.format(_get_compiled_expression(constraint.sqltext))
+            return self._prepend + 'CheckConstraint({0!r})'.format(_get_compiled_expression(constraint.sqltext))
         elif isinstance(constraint, UniqueConstraint):
             columns = [repr(col.name) for col in constraint.columns]
-            return 'UniqueConstraint({0})'.format(', '.join(columns))
+            return self._prepend + 'UniqueConstraint({0})'.format(', '.join(columns))
 
-    @staticmethod
-    def render_index(index):
+    def render_index(self, index):
         extra_args = [repr(col.name) for col in index.columns]
         if index.unique:
             extra_args.append('unique=True')
-        return 'Index({0!r}, {1})'.format(index.name, ', '.join(extra_args))
+        return self._prepend + 'Index({0!r}, {1})'.format(index.name, ', '.join(extra_args))
 
     def render_column(self, column, show_name):
         kwarg = []
@@ -522,13 +545,16 @@ class CodeGenerator(object):
             column.index = True
             kwarg.append('index')
         if column.server_default:
-            default_expr = _get_compiled_expression(column.server_default.arg)
-            if '\n' in default_expr:
-                server_default = 'server_default=text("""\\\n{0}""")'.format(default_expr)
+            if self.fetched_value and not column.primary_key:
+                server_default = 'server_default=' + self._prepend + 'FetchedValue()'
             else:
-                server_default = 'server_default=text("{0}")'.format(default_expr)
+                default_expr = _get_compiled_expression(column.server_default.arg)
+                if '\n' in default_expr:
+                    server_default = 'server_default=text("""\\\n{0}""")'.format(default_expr)
+                else:
+                    server_default = 'server_default=text("{0}")'.format(default_expr)
 
-        return 'Column({0})'.format(', '.join(
+        return self._prepend + 'Column({0})'.format(', '.join(
             ([repr(column.name)] if show_name else []) +
             ([self.render_column_type(column.type)] if render_coltype else []) +
             [self.render_constraint(x) for x in dedicated_fks] +
@@ -538,12 +564,12 @@ class CodeGenerator(object):
         ))
 
     def render_relationship(self, relationship):
-        rendered = 'relationship('
+        rendered = self._prepend + 'relationship('
         args = [repr(relationship.target_cls)]
 
         if 'secondaryjoin' in relationship.kwargs:
-            rendered += '\n{0}{0}'.format(self.indentation)
-            delimiter, end = ',\n{0}{0}'.format(self.indentation), '\n{0})'.format(self.indentation)
+            rendered += '\n{0}{0}'.format(INDENTATION)
+            delimiter, end = ',\n{0}{0}'.format(INDENTATION), '\n{0})'.format(INDENTATION)
         else:
             delimiter, end = ', ', ')'
 
@@ -551,30 +577,31 @@ class CodeGenerator(object):
         return rendered + delimiter.join(args) + end
 
     def render_table(self, model):
-        rendered = 't_{0} = Table(\n{1}{0!r}, metadata,\n'.format(model.table.name, self.indentation)
+        met = ' metadata,' if self._prepend == '' else ''
+        rendered = 't_{0} = {2}Table(\n{1}{0!r},{3}\n'.format(model.table.name, INDENTATION, self._prepend, met)
 
         for column in model.table.columns:
-            rendered += '{0}{1},\n'.format(self.indentation, self.render_column(column, True))
+            rendered += '{0}{1},\n'.format(INDENTATION, self.render_column(column, True))
 
         for constraint in sorted(model.table.constraints, key=_get_constraint_sort_key):
             if isinstance(constraint, PrimaryKeyConstraint):
                 continue
             if isinstance(constraint, (ForeignKeyConstraint, UniqueConstraint)) and len(constraint.columns) == 1:
                 continue
-            rendered += '{0}{1},\n'.format(self.indentation, self.render_constraint(constraint))
+            rendered += '{0}{1},\n'.format(INDENTATION, self.render_constraint(constraint))
 
         for index in model.table.indexes:
             if len(index.columns) > 1:
-                rendered += '{0}{1},\n'.format(self.indentation, self.render_index(index))
+                rendered += '{0}{1},\n'.format(INDENTATION, self.render_index(index))
 
         if model.schema:
-            rendered += "{0}schema='{1}',\n".format(self.indentation, model.schema)
+            rendered += "{0}schema='{1}',\n".format(INDENTATION, model.schema)
 
         return rendered.rstrip('\n,') + '\n)\n'
 
     def render_class(self, model):
         rendered = 'class {0}({1}):\n'.format(model.name, model.parent_name)
-        rendered += '{0}__tablename__ = {1!r}\n'.format(self.indentation, model.table.name)
+        rendered += '{0}__tablename__ = {1!r}\n'.format(INDENTATION, model.table.name)
 
         # Render constraints and indexes as __table_args__
         table_args = []
@@ -595,44 +622,45 @@ class CodeGenerator(object):
         kwargs_items = ', '.join('{0!r}: {1!r}'.format(key, table_kwargs[key]) for key in table_kwargs)
         kwargs_items = '{{{0}}}'.format(kwargs_items) if kwargs_items else None
         if table_kwargs and not table_args:
-            rendered += '{0}__table_args__ = {1}\n'.format(self.indentation, kwargs_items)
+            rendered += '{0}__table_args__ = {1}\n'.format(INDENTATION, kwargs_items)
         elif table_args:
             if kwargs_items:
                 table_args.append(kwargs_items)
             if len(table_args) == 1:
                 table_args[0] += ','
-            table_args_joined = ',\n{0}{0}'.format(self.indentation).join(table_args)
-            rendered += '{0}__table_args__ = (\n{0}{0}{1}\n{0})\n'.format(self.indentation, table_args_joined)
+            table_args_joined = ',\n{0}{0}'.format(INDENTATION).join(table_args)
+            rendered += '{0}__table_args__ = (\n{0}{0}{1}\n{0})\n'.format(INDENTATION, table_args_joined)
 
         # Render columns
         rendered += '\n'
         for attr, column in model.attributes.items():
             if isinstance(column, Column):
                 show_name = attr != column.name
-                rendered += '{0}{1} = {2}\n'.format(self.indentation, attr, self.render_column(column, show_name))
+                rendered += '{0}{1} = {2}\n'.format(INDENTATION, attr, self.render_column(column, show_name))
 
         # Render relationships
         if any(isinstance(value, Relationship) for value in model.attributes.values()):
             rendered += '\n'
         for attr, relationship in model.attributes.items():
             if isinstance(relationship, Relationship):
-                rendered += '{0}{1} = {2}\n'.format(self.indentation, attr, self.render_relationship(relationship))
+                rendered += '{0}{1} = {2}\n'.format(INDENTATION, attr, self.render_relationship(relationship))
 
         # Render subclasses
         for child_class in model.children:
-            rendered += self.model_separator + self.render_class(child_class)
+            rendered += MODEL_SEPARATOR + self.render_class(child_class)
 
         return rendered
 
     def render(self, outfile=sys.stdout):
         rendered_models = []
         for model in self.models:
-            if isinstance(model, self.class_model):
+            if isinstance(model, ModelClass):
                 rendered_models.append(self.render_class(model))
-            elif isinstance(model, self.table_model):
+            elif isinstance(model, ModelTable):
                 rendered_models.append(self.render_table(model))
 
-        output = self.template.format(imports=self.render_imports(),
-                                      metadata_declarations=self.render_metadata_declarations(),
-                                      models=self.model_separator.join(rendered_models).rstrip('\n'))
+        output = self.template.format(
+            imports=self.render_imports(),
+            metadata_declarations=self.render_metadata_declarations(),
+            models=MODEL_SEPARATOR.join(rendered_models).rstrip('\n'))
         print(output, file=outfile)
