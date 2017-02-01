@@ -12,7 +12,7 @@ What's different:
 * Primary joins are explicit.
 * If column has a server_default set it to `FetchValue()` instead of trying to determine what that value is. Original code did not set the right server defaults in my setup.
 * `--ignore-cols` ignores special columns when generating association tables. Original code requires all columns to be foreign keys in order to generate association table. Example: `--ignore-cols id,inserted,updated`.
-* Uses the command `flask-sqlacodgen` instead of `sqlacodegen`.
+* Uses the command `flask-sqlacodegen` instead of `sqlacodegen`.
 
 ## Install
 
