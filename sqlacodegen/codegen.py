@@ -280,7 +280,7 @@ class ModelTable(Model):
 
     def render(self):
         met = ' metadata,' if _flask_prepend == '' else ''
-        text = 't_{0} = {1}Table(\n    {0!r},{2}\n'.format(self.table.name, _flask_prepend, met)
+        text = '{0}_table = {1}Table(\n    {0!r},{2}\n'.format(self.table.name, _flask_prepend, met)
 
         for column in self.table.columns:
             text += '    {0},\n'.format(_render_column(column, True))
@@ -498,7 +498,7 @@ class ManyToManyRelationship(Relationship):
     def __init__(self, source_cls, target_cls, assocation_table, inflect_engine):
         super(ManyToManyRelationship, self).__init__(source_cls, target_cls)
 
-        self.kwargs['secondary'] = repr(assocation_table.schema + '.' + assocation_table.name)
+        self.kwargs['secondary'] = repr(assocation_table.name)
         constraints = [c for c in assocation_table.constraints if isinstance(c, ForeignKeyConstraint)]
         constraints.sort(key=_get_constraint_sort_key)
         colname = _get_column_names(constraints[1])[0]
