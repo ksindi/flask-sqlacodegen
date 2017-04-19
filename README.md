@@ -6,7 +6,7 @@ Fork of [sqlacodegen](https://pypi.python.org/pypi/sqlacodegen) by Alex Gronholm
 
 What's different:
 
-* Bugfix for "TypeError: unsupported operand type(s) for +: 'NoneType' and 'str'
+* Bugfix for "TypeError: unsupported operand type(s) for +: 'NoneType' and 'str'"
 * Support for Flask-SQLAlchemy syntax using `--flask` option.
 * Defaults to generating backrefs in relationships. `--nobackref` still included as option in case backrefs are not wanted. 
 * Naming of backrefs is class name in snake_case (as opposed to CamelCase) and is pluralized if it's Many-to-One or Many-to-Many using [inflect](https://pypi.python.org/pypi/inflect).

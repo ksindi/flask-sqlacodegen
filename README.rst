@@ -9,7 +9,7 @@ Alex Gronholm. Based off of version 1.1.6.
 
 What's different:
 
--  Bugfix for "TypeError: unsupported operand type(s) for +: 'NoneType' and 'str'
+-  Bugfix for "TypeError: unsupported operand type(s) for +: 'NoneType' and 'str'"
 -  Support for Flask-SQLAlchemy syntax using ``--flask`` option.
 -  Defaults to generating backrefs in relationships. ``--nobackref``
    still included as option in case backrefs are not wanted.
