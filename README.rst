@@ -2,13 +2,14 @@ flask-sqlacodegen
 =================
 
 GitHub page:
-`flask-sqlacodegen <https://github.com/ksindi/flask-sqlacodegen>`__
+`flask-sqlacodegen <https://github.com/pwall27/flask-sqlacodegen>`__
 
 Fork of `sqlacodegen <https://pypi.python.org/pypi/sqlacodegen>`__ by
 Alex Gronholm. Based off of version 1.1.6.
 
 What's different:
 
+-  Bugfix for "TypeError: unsupported operand type(s) for +: 'NoneType' and 'str'"
 -  Support for Flask-SQLAlchemy syntax using ``--flask`` option.
 -  Defaults to generating backrefs in relationships. ``--nobackref``
    still included as option in case backrefs are not wanted.
@@ -32,13 +33,13 @@ With pip:
 
 ::
 
-    pip install flask-sqlacodegen
+    pip install -e git://git@github.com:pwall27/flask-sqlacodegen.git#egg=flask-sqlacodegen
 
 Without pip:
 
 ::
 
-    git clone https://github.com/ksindi/flask-sqlacodegen.git
+    git clone https://github.com/pwall27/flask-sqlacodegen.git
     cd flask-sqlacodegen/
     python setup.py install
 
