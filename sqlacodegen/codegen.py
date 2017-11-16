@@ -635,6 +635,7 @@ class CodeGenerator(object):
                     model.parent_name = parent_name
         else:
             self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
+            self.collector.add_literal_import('sqlalchemy', 'MetaData')
 
     def render(self, outfile=sys.stdout):
         print(self.header, file=outfile)
