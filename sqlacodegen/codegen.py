@@ -6,9 +6,10 @@ from keyword import iskeyword
 import inspect
 import sys
 import re
+import types
 
 from sqlalchemy import (Enum, ForeignKeyConstraint, PrimaryKeyConstraint, CheckConstraint, UniqueConstraint, Table,
-                        Column)
+                        Column, ARRAY)
 from sqlalchemy.schema import ForeignKey
 from sqlalchemy.util import OrderedDict
 from sqlalchemy.types import Boolean, String
@@ -40,6 +41,10 @@ class _DummyInflectEngine(object):
         inflect_engine = inflect.engine()
         return inflect_engine.plural_noun(noun)
 
+def convert_postgresql_type_to_python_class(name_class):
+    dict_value_to_convert = {"INTEGER()": "Integer()", "TEXT()": "String()", "DATE()": "Date()",
+                             "FLOAT()": "Float()", "DATETIME()": "DateTime()"}
+    return dict_value_to_convert[name_class]
 
 # In SQLAlchemy 0.x, constraint.columns is sometimes a list, on 1.x onwards, always a ColumnCollection
 def _get_column_names(constraint):
@@ -106,6 +111,9 @@ def _render_column_type(coltype):
         args.extend(repr(arg) for arg in coltype.enums)
         if coltype.name is not None:
             args.append('name={0!r}'.format(coltype.name))
+    elif isinstance(coltype, ARRAY):
+        python_class = convert_postgresql_type_to_python_class(repr(coltype.item_type))
+        args.append(python_class)
     else:
         # All other types
         argspec = _getargspec_init(coltype.__class__.__init__)
@@ -244,7 +252,6 @@ class Model(object):
                     cls = supercls
                 if supercls.__name__ != supercls.__name__.upper() and not supercls.__name__.startswith('_'):
                     break
-
             column.type = column.type.adapt(cls)
 
     def add_imports(self, collector):
