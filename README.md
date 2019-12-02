@@ -1,6 +1,4 @@
-# flask-sqlacodegen
-
-GitHub page: [flask-sqlacodegen](https://github.com/ksindi/flask-sqlacodegen) 
+# Flask sqlacodegen
 
 Fork of [sqlacodegen](https://pypi.python.org/pypi/sqlacodegen) by Alex Gronholm. Based off of version 1.1.6.
 
@@ -17,12 +15,12 @@ What's different:
 ## Install
 
 With pip:
-```
+```sh
 pip install flask-sqlacodegen
 ```
 
 Without pip:
-```
+```sh
 git clone https://github.com/ksindi/flask-sqlacodegen.git
 cd flask-sqlacodegen/
 python setup.py install
