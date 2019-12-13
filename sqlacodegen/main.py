@@ -37,6 +37,7 @@ def main():
     parser.add_argument('--nobackrefs', action='store_true', help="don't include backrefs")
     parser.add_argument('--flask', action='store_true', help="use Flask-SQLAlchemy columns")
     parser.add_argument('--ignore-cols', help="Don't check foreign key constraints on specified columns (comma-separated)")
+    parser.add_argument('--nocomments', action='store_true', help="don't render column comments")
     args = parser.parse_args()
 
     if args.version:
@@ -56,7 +57,7 @@ def main():
     outfile = codecs.open(args.outfile, 'w', encoding='utf-8') if args.outfile else sys.stdout
     generator = CodeGenerator(metadata, args.noindexes, args.noconstraints,
                               args.nojoined, args.noinflect, args.nobackrefs,
-                              args.flask, ignore_cols, args.noclasses)
+                              args.flask, ignore_cols, args.noclasses, args.nocomments)
     generator.render(outfile)
 
 
