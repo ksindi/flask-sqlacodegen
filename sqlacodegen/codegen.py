@@ -160,13 +160,15 @@ def _render_column(column, show_name):
     if column.server_default:
         server_default = 'server_default=' + _flask_prepend + 'FetchedValue()'
 
+    comment = getattr(column, 'comment', None)
     return _flask_prepend + 'Column({0})'.format(', '.join(
         ([repr(column.name)] if show_name else []) +
         ([_render_column_type(column.type)] if render_coltype else []) +
         [_render_constraint(x) for x in dedicated_fks] +
         [repr(x) for x in column.constraints] +
         ['{0}={1}'.format(k, repr(getattr(column, k))) for k in kwarg] +
-        ([server_default] if column.server_default else [])
+        ([server_default] if column.server_default else []) +
+        (['info={!r}'.format(comment)] if comment else [])
     ))
 
 
@@ -527,7 +529,7 @@ class CodeGenerator(object):
 
     def __init__(self, metadata, noindexes=False, noconstraints=False,
                  nojoined=False, noinflect=False, nobackrefs=False,
-                 flask=False, ignore_cols=None, noclasses=False):
+                 flask=False, ignore_cols=None, noclasses=False, nocomments=False):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -543,6 +545,8 @@ class CodeGenerator(object):
         if not self.flask:
             global _flask_prepend
             _flask_prepend = ''
+
+        self.nocomments = nocomments
 
         # Pick association tables from the metadata into their own set, don't process them normally
         links = defaultdict(lambda: [])
@@ -654,7 +658,7 @@ class CodeGenerator(object):
         # Render the model tables and classes
         for model in self.models:
             print('\n\n', file=outfile)
-            print(model.render().rstrip('\n').encode('utf-8'), file=outfile)
+            print(model.render().rstrip('\n'), file=outfile)
 
         if self.footer:
             print(self.footer, file=outfile)
