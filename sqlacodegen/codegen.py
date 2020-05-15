@@ -126,7 +126,12 @@ def _render_column_type(coltype):
             else:
                 args.append(repr(value))
 
-    text = _flask_prepend + coltype.__class__.__name__
+    # In case of ENUM from sqlalchemy.dialects, the flask used db.Enum
+    if coltype.__class__.__name__ == "ENUM":
+        text = _flask_prepend + "Enum"
+    else:
+        text = _flask_prepend + coltype.__class__.__name__
+
     if args:
         text += '({0})'.format(', '.join(args))
 
@@ -529,7 +534,7 @@ class CodeGenerator(object):
 
     def __init__(self, metadata, noindexes=False, noconstraints=False,
                  nojoined=False, noinflect=False, nobackrefs=False,
-                 flask=False, ignore_cols=None, noclasses=False, nocomments=False):
+                 flask=False, ignore_cols=None, noclasses=False, nocomments=False, notables=False):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -603,15 +608,22 @@ class CodeGenerator(object):
                                     table.c[colname].type = Enum(*options, native_enum=False)
                                 continue
 
-            # Only form model classes for tables that have a primary key and are not association tables
-            if not table.primary_key or table.name in association_tables or noclasses:
+            # Only generate classes when notables is set to True
+            if notables:
+                model = ModelClass(table, links[table.name], inflect_engine, not nojoined)
+                classes[model.name] = model
+            elif not table.primary_key or table.name in association_tables or noclasses:
+                # Only form model classes for tables that have a primary key and are not association tables
                 model = ModelTable(table)
             elif not noclasses:
                 model = ModelClass(table, links[table.name], inflect_engine, not nojoined)
                 classes[model.name] = model
 
             self.models.append(model)
-            model.add_imports(self.collector)
+
+            # collect imports for models only if flask is not specified
+            if not self.flask:
+                model.add_imports(self.collector)
 
         # Nest inherited classes in their superclasses to ensure proper ordering
         for model in classes.values():
