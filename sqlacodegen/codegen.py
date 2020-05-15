@@ -126,11 +126,11 @@ def _render_column_type(coltype):
             else:
                 args.append(repr(value))
 
+    text = _flask_prepend + coltype.__class__.__name__
+
     # In case of ENUM from sqlalchemy.dialects, the flask used db.Enum
-    if coltype.__class__.__name__ == "ENUM":
-        text = _flask_prepend + "Enum"
-    else:
-        text = _flask_prepend + coltype.__class__.__name__
+    if text == "db.ENUM":
+        text = "db.Enum"
 
     if args:
         text += '({0})'.format(', '.join(args))
