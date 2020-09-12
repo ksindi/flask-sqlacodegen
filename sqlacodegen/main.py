@@ -33,6 +33,7 @@ def main():
     parser.add_argument('--nojoined', action='store_true', help="don't autodetect joined table inheritance")
     parser.add_argument('--noinflect', action='store_true', help="don't try to convert tables names to singular form")
     parser.add_argument('--noclasses', action='store_true', help="don't generate classes, only tables")
+    parser.add_argument('--notables', action='store_true', help="don't generate tables, only classes")
     parser.add_argument('--outfile', help='file to write output to (default: stdout)')
     parser.add_argument('--nobackrefs', action='store_true', help="don't include backrefs")
     parser.add_argument('--flask', action='store_true', help="use Flask-SQLAlchemy columns")
@@ -57,7 +58,7 @@ def main():
     outfile = codecs.open(args.outfile, 'w', encoding='utf-8') if args.outfile else sys.stdout
     generator = CodeGenerator(metadata, args.noindexes, args.noconstraints,
                               args.nojoined, args.noinflect, args.nobackrefs,
-                              args.flask, ignore_cols, args.noclasses, args.nocomments)
+                              args.flask, ignore_cols, args.noclasses, args.nocomments, args.notables)
     generator.render(outfile)
 
 

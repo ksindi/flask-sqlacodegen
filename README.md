@@ -11,6 +11,7 @@ What's different:
 * If column has a server_default set it to `FetchValue()` instead of trying to determine what that value is. Original code did not set the right server defaults in my setup.
 * `--ignore-cols` ignores special columns when generating association tables. Original code requires all columns to be foreign keys in order to generate association table. Example: `--ignore-cols id,inserted,updated`.
 * Uses the command `flask-sqlacodegen` instead of `sqlacodegen`.
+* Added support for `--notables` to only generate model classes, even for association tables
 
 ## Install
 
@@ -24,4 +25,12 @@ Without pip:
 git clone https://github.com/ksindi/flask-sqlacodegen.git
 cd flask-sqlacodegen/
 python setup.py install
+```
+
+For contributing:
+```sh
+git clone https://github.com/ksindi/flask-sqlacodegen.git
+python -m venv env
+pip install -r requirements.txt
+python -m sqlacodegen.main --flask --outfile models.py mysql+pymysql://<username>:<password>@<database-ip>:<port>/<database-name> [--tables <tablenames>] [--notables]
 ```

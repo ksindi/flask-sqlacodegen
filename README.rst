@@ -24,6 +24,7 @@ What's different:
    order to generate association table. Example:
    ``--ignore-cols id,inserted,updated``.
 -  Uses the command ``flask-sqlacodgen`` instead of ``sqlacodegen``.
+- Added support for ``--notables`` to only generate model classes, even for association tables
 
 Install
 -------
