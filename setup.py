@@ -25,7 +25,8 @@ if sys.version_info < (2, 7):
 setup(
     name='flask-sqlacodegen',
     description='Automatic model code generator for SQLAlchemy with Flask support',
-    long_description=open('README.rst').read(),
+    long_description=open("README.md").read(),
+    long_description_content_type="text/markdown",
     version=sqlacodegen.version,
     author='Kamil Sindi',
     classifiers=[
@@ -36,7 +37,6 @@ setup(
         'Topic :: Database',
         'Topic :: Software Development :: Code Generators',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.2',
@@ -44,7 +44,7 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7'
+        'Programming Language :: Python :: 3.7',
     ],
     keywords=['sqlalchemy', 'sqlacodegen', 'flask'],
     license='MIT',

@@ -1,1 +1,1 @@
-include tox.ini
+include LICENSE README.md tox.ini
