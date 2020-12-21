@@ -670,7 +670,11 @@ class CodeGenerator(object):
         # Render the model tables and classes
         for model in self.models:
             print('\n\n', file=outfile)
-            print(model.render().rstrip('\n').decode("unicode-escape"), file=outfile)
+            if sys.version_info.major <= 2:
+                model_text = model.render().rstrip('\n').decode("unicode-escape")
+            else:
+                model_text = model.render().rstrip('\n')
+            print(model_text, file=outfile)
 
         if self.footer:
             print(self.footer, file=outfile)
