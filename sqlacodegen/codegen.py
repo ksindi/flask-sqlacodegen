@@ -414,12 +414,8 @@ class ModelClass(Model):
         for attr, column in self.attributes.items():
             if isinstance(column, Column):
                 show_name = attr != column.name
-                if _dataclass:
-                    var_decl = column.type.python_type.__name__ 
-                    if column.type.python_type.__module__ != 'builtins':
-                        var_decl = column.type.python_type.__module__ + '.' + var_decl
-                    
-                    text += '    ' + attr + ' : ' + var_decl + '\n'
+                if _dataclass:                    
+                    text += '    ' + attr + ' : ' + column.type.python_type.__name__  + '\n'
                 
                 text += '    {0} = {1}\n'.format(attr, _render_column(column, show_name))
 
