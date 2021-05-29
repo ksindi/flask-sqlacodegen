@@ -39,6 +39,7 @@ def main():
     parser.add_argument('--flask', action='store_true', help="use Flask-SQLAlchemy columns")
     parser.add_argument('--ignore-cols', help="Don't check foreign key constraints on specified columns (comma-separated)")
     parser.add_argument('--nocomments', action='store_true', help="don't render column comments")
+    parser.add_argument('--dataclass', action='store_true', help="add dataclass decorators for JSON serialization")
     args = parser.parse_args()
 
     if args.version:
