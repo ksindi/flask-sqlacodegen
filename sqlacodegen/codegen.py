@@ -24,11 +24,14 @@ _re_column_name = re.compile(r'(?:(["`]?)(?:.*)\1\.)?(["`]?)(.*)\2')
 _re_enum_check_constraint = re.compile(r"(?:(?:.*?)\.)?(.*?) IN \((.+)\)")
 _re_enum_item = re.compile(r"'(.*?)(?<!\\)'")
 _re_invalid_identifier = re.compile(r'[^a-zA-Z0-9_]' if sys.version_info[0] < 3 else r'(?u)\W')
+_re_invalid_relationship = re.compile(r'[^a-zA-Z0-9._()\[\]{}= \'",]')
 
 _re_first_cap = re.compile('(.)([A-Z][a-z]+)')
 _re_all_cap = re.compile('([a-z0-9])([A-Z])')
 
 _flask_prepend = 'db.'
+
+_dataclass = False
 
 
 class _DummyInflectEngine(object):
@@ -311,7 +314,7 @@ class ModelTable(Model):
 class ModelClass(Model):
     parent_name = 'Base'
 
-    def __init__(self, table, association_tables, inflect_engine, detect_joined):
+    def __init__(self, table, association_tables, inflect_engine, detect_joined, collector):
         super(ModelClass, self).__init__(table)
         self.name = self._tablename_to_classname(table.name, inflect_engine)
         self.children = []
@@ -320,6 +323,10 @@ class ModelClass(Model):
         # Assign attribute names for columns
         for column in table.columns:
             self._add_attribute(column.name, column)
+            if _dataclass:
+                if column.type.python_type.__module__ != 'builtins':
+                    collector.add_literal_import(column.type.python_type.__module__, column.type.python_type.__name__)
+            
 
         # Add many-to-one relationships
         pk_column_names = set(col.name for col in table.primary_key.columns)
@@ -366,7 +373,13 @@ class ModelClass(Model):
             child.add_imports(collector)
 
     def render(self):
+        global _dataclass        
+            
         text = 'class {0}({1}):\n'.format(self.name, self.parent_name)
+        
+        if _dataclass:
+            text = '@dataclass\n' + text
+            
         text += '    __tablename__ = {0!r}\n'.format(self.table.name)
 
         # Render constraints and indexes as __table_args__
@@ -401,6 +414,9 @@ class ModelClass(Model):
         for attr, column in self.attributes.items():
             if isinstance(column, Column):
                 show_name = attr != column.name
+                if _dataclass:                    
+                    text += '    ' + attr + ' : ' + column.type.python_type.__name__  + '\n'
+                
                 text += '    {0} = {1}\n'.format(attr, _render_column(column, show_name))
 
         # Render relationships
@@ -436,7 +452,8 @@ class Relationship(object):
             delimiter, end = ', ', ')'
 
         args.extend([key + '=' + value for key, value in self.kwargs.items()])
-        return text + delimiter.join(args) + end
+        
+        return _re_invalid_relationship.sub('_', text + delimiter.join(args) + end)
 
     def make_backref(self, relationships, classes):
         backref = self.backref_name
@@ -533,7 +550,7 @@ class CodeGenerator(object):
 
     def __init__(self, metadata, noindexes=False, noconstraints=False,
                  nojoined=False, noinflect=False, nobackrefs=False,
-                 flask=False, ignore_cols=None, noclasses=False, nocomments=False, notables=False):
+                 flask=False, ignore_cols=None, noclasses=False, nocomments=False, notables=False, dataclass=False):
         super(CodeGenerator, self).__init__()
 
         if noinflect:
@@ -551,6 +568,11 @@ class CodeGenerator(object):
             _flask_prepend = ''
 
         self.nocomments = nocomments
+        
+        self.dataclass = dataclass
+        if self.dataclass:
+            global _dataclass
+            _dataclass = True
 
         # Pick association tables from the metadata into their own set, don't process them normally
         links = defaultdict(lambda: [])
@@ -609,13 +631,13 @@ class CodeGenerator(object):
 
             # Only generate classes when notables is set to True
             if notables:
-                model = ModelClass(table, links[table.name], inflect_engine, not nojoined)
+                model = ModelClass(table, links[table.name], inflect_engine, not nojoined, self.collector)
                 classes[model.name] = model
             elif not table.primary_key or table.name in association_tables or noclasses:
                 # Only form model classes for tables that have a primary key and are not association tables
                 model = ModelTable(table)
             elif not noclasses:
-                model = ModelClass(table, links[table.name], inflect_engine, not nojoined)
+                model = ModelClass(table, links[table.name], inflect_engine, not nojoined, self.collector)
                 classes[model.name] = model
 
             self.models.append(model)
@@ -651,8 +673,13 @@ class CodeGenerator(object):
         else:
             self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
             self.collector.add_literal_import('sqlalchemy', 'MetaData')
+            
+            
+        if self.dataclass:
+            self.collector.add_literal_import('dataclasses', 'dataclass')
 
     def render(self, outfile=sys.stdout):
+        
         print(self.header, file=outfile)
 
         # Render the collected imports

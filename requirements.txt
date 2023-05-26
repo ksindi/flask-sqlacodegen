@@ -10,7 +10,7 @@ packaging==20.3
 sqlacodegen==1.1.6
 pep8==1.7.1
 pluggy==0.13.1
-py==1.8.1
+py==1.10.0
 PyMySQL==0.9.3
 pyparsing==2.4.7
 pytest==5.4.2
