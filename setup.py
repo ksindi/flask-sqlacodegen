@@ -45,13 +45,16 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
     ],
     keywords=['sqlalchemy', 'sqlacodegen', 'flask'],
     license='MIT',
     packages=find_packages(exclude=['tests']),
     install_requires=(
-        'SQLAlchemy >= 0.6.0',
-        'inflect >= 0.2.0'
+        "SQLAlchemy >= 2.0",
+        "inflect >= 4.0.0",
     ) + extra_requirements,
     tests_require=['pytest', 'pytest-pep8'],
     cmdclass={'test': PyTest},

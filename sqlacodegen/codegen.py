@@ -1,7 +1,6 @@
 """Contains the code generation logic and helper functions."""
 from __future__ import unicode_literals, division, print_function, absolute_import
 from collections import defaultdict
-from inspect import ArgSpec
 from keyword import iskeyword
 import inspect
 import sys
@@ -95,12 +94,12 @@ def _get_common_fk_constraints(table1, table2):
 
 def _getargspec_init(method):
     try:
-        return inspect.getargspec(method)
+        return inspect.getfullargspec(method)
     except TypeError:
         if method is object.__init__:
-            return ArgSpec(['self'], None, None, None)
+            return inspect.getfullargspec(lambda self: None)
         else:
-            return ArgSpec(['self'], 'args', 'kwargs', None)
+            return inspect.getfullargspec(lambda self, *args, **kwargs: None)
 
 
 def _render_column_type(coltype):
