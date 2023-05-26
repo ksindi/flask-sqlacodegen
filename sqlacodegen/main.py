@@ -26,6 +26,7 @@ def main():
     parser.add_argument('url', nargs='?', help='SQLAlchemy url to the database')
     parser.add_argument('--version', action='store_true', help="print the version number and exit")
     parser.add_argument('--schema', help='load tables from an alternate schema')
+    parser.add_argument('--default-schema', help='default schema name for local schema object')
     parser.add_argument('--tables', help='tables to process (comma-separated, default: all)')
     parser.add_argument('--noviews', action='store_true', help="ignore views")
     parser.add_argument('--noindexes', action='store_true', help='ignore indexes')
@@ -48,10 +49,13 @@ def main():
         print('You must supply a url\n', file=sys.stderr)
         parser.print_help()
         return
+    default_schema = args.default_schema
+    if not default_schema:
+        default_schema = None  
 
     engine = create_engine(args.url)
     import_dialect_specificities(engine)
-    metadata = MetaData(engine)
+    metadata = MetaData(engine, False, default_schema)
     tables = args.tables.split(',') if args.tables else None
     ignore_cols = args.ignore_cols.split(',') if args.ignore_cols else None
     metadata.reflect(engine, args.schema, not args.noviews, tables)
