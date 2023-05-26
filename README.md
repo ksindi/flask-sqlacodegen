@@ -1,15 +1,6 @@
 # Flask sqlacodegen
 
-Fork of [sqlacodegen](https://pypi.python.org/pypi/sqlacodegen) by Alex Gronholm. Based off of version 1.1.6.
-> Now Support Python 3.9 or lastest 
-
-> Now Support SQLAlchemy 2.0 or lastest
-
-Thanks
-
-* https://github.com/maacck/sqlacodegen_v2/
-* https://github.com/ksindi/flask-sqlacodegen/pull/47
-
+Fork of [sqlacodegen](https://pypi.python.org/pypi/sqlacodegen) by Alex Gronholm.
 
 What's different:
 
