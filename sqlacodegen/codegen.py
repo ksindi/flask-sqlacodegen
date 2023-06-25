@@ -5,6 +5,7 @@ from keyword import iskeyword
 import inspect
 import sys
 import re
+import json
 
 from sqlalchemy import (Enum, ForeignKeyConstraint, PrimaryKeyConstraint, CheckConstraint, UniqueConstraint, Table,
                         Column)
@@ -310,6 +311,11 @@ class ModelTable(Model):
 
         return text.rstrip('\n,') + '\n)'
 
+    def renderEndpoint(self):
+        text = ''
+        return text
+
+
 
 class ModelClass(Model):
     parent_name = 'Base'
@@ -326,7 +332,7 @@ class ModelClass(Model):
             if _dataclass:
                 if column.type.python_type.__module__ != 'builtins':
                     collector.add_literal_import(column.type.python_type.__module__, column.type.python_type.__name__)
-            
+
 
         # Add many-to-one relationships
         pk_column_names = set(col.name for col in table.primary_key.columns)
@@ -373,13 +379,13 @@ class ModelClass(Model):
             child.add_imports(collector)
 
     def render(self):
-        global _dataclass        
-            
+        global _dataclass
+
         text = 'class {0}({1}):\n'.format(self.name, self.parent_name)
-        
+
         if _dataclass:
             text = '@dataclass\n' + text
-            
+
         text += '    __tablename__ = {0!r}\n'.format(self.table.name)
 
         # Render constraints and indexes as __table_args__
@@ -414,9 +420,9 @@ class ModelClass(Model):
         for attr, column in self.attributes.items():
             if isinstance(column, Column):
                 show_name = attr != column.name
-                if _dataclass:                    
+                if _dataclass:
                     text += '    ' + attr + ' : ' + column.type.python_type.__name__  + '\n'
-                
+
                 text += '    {0} = {1}\n'.format(attr, _render_column(column, show_name))
 
         # Render relationships
@@ -431,6 +437,29 @@ class ModelClass(Model):
             text += '\n\n' + child_class.render()
 
         return text
+
+    def renderEndpoint(self, conf):
+        text = 'class {0}({1}):\n'.format(self.name, conf['resourceClass'])
+        decors = ""
+        for dec in conf['decorators']:
+            decors += '  {0}\n'.format(dec)
+
+        modelModule = ''
+        if conf['modelModule']:
+            modelModule = conf['modelModule'] + '.'
+        #Get:
+        text +=decors
+        text += '  def get(self):\n    return jsonify({0}{1}.query.all())\n'.format(modelModule, self.name)
+
+        #Post:
+        text +=decors
+        text += '  def post(self):\n    body = request.get_json()\n    {0} = {1}{2}(**body)\n'.format(self.name.lower(), modelModule, self.name)
+        text += '    {0}.session.add({1})\n    {0}.session.commit()\n'.format(conf['dbObject'], self.name.lower())
+
+        return text
+
+    def renderAddResourceMethod(self, conf):
+        return '  {0}({1}, "{2}/{3}")\n'.format(conf['addResourceFunction'], self.name, conf['apiUrlPrefix'], self.name.lower())
 
 
 class Relationship(object):
@@ -452,7 +481,7 @@ class Relationship(object):
             delimiter, end = ', ', ')'
 
         args.extend([key + '=' + value for key, value in self.kwargs.items()])
-        
+
         return _re_invalid_relationship.sub('_', text + delimiter.join(args) + end)
 
     def make_backref(self, relationships, classes):
@@ -509,7 +538,7 @@ class ManyToOneRelationship(Relationship):
         # common_fk_constraints = _get_common_fk_constraints(constraint.table, constraint.elements[0].column.table)
         # if len(common_fk_constraints) > 1:
         # self.kwargs['primaryjoin'] = "'{0}.{1} == {2}.{3}'".format(source_cls, constraint.columns[0], target_cls, constraint.elements[0].column.name)
-        if len(constraint.elements) > 1:  #  or 
+        if len(constraint.elements) > 1:  #  or
             self.kwargs['primaryjoin'] = "'and_({0})'".format(', '.join(['{0}.{1} == {2}.{3}'.format(source_cls, k.parent.name, target_cls, k.column.name)
                         for k in constraint.elements]))
         else:
@@ -561,14 +590,14 @@ class CodeGenerator(object):
 
         # exclude these column names from consideration when generating association tables
         _ignore_columns = ignore_cols or []
-        
+
         self.flask = flask
         if not self.flask:
             global _flask_prepend
             _flask_prepend = ''
 
         self.nocomments = nocomments
-        
+
         self.dataclass = dataclass
         if self.dataclass:
             global _dataclass
@@ -673,13 +702,13 @@ class CodeGenerator(object):
         else:
             self.collector.add_literal_import('sqlalchemy.ext.declarative', 'declarative_base')
             self.collector.add_literal_import('sqlalchemy', 'MetaData')
-            
-            
+
+
         if self.dataclass:
             self.collector.add_literal_import('dataclasses', 'dataclass')
 
     def render(self, outfile=sys.stdout):
-        
+
         print(self.header, file=outfile)
 
         # Render the collected imports
@@ -700,3 +729,20 @@ class CodeGenerator(object):
 
         if self.footer:
             print(self.footer, file=outfile)
+
+
+    def renderEndpoints(self, config, outfile):
+
+        file = open(config,'r')
+        text = file.read()
+        conf =json.loads(text)
+        addResourceMethod = "def AddEndpointResources(self):\n"
+        resourceText = ""
+
+        for model in self.models:
+            resourceText += '\n\n'
+            resourceText += model.renderEndpoint(conf).rstrip('\n')
+            addResourceMethod += model.renderAddResourceMethod(conf)
+
+        print(addResourceMethod, file=outfile)
+        print(resourceText, file=outfile)

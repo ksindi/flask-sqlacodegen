@@ -4,6 +4,8 @@ import argparse
 import codecs
 import importlib
 import sys
+import os
+import time
 
 from sqlalchemy.engine import create_engine
 from sqlalchemy.schema import MetaData
@@ -40,6 +42,8 @@ def main():
     parser.add_argument('--flask', action='store_true', help="use Flask-SQLAlchemy columns")
     parser.add_argument('--ignore-cols', help="Don't check foreign key constraints on specified columns (comma-separated)")
     parser.add_argument('--nocomments', action='store_true', help="don't render column comments")
+    parser.add_argument('--flask-endpoint-conf', help="config file for flask endpoints")
+    parser.add_argument('--flask-endpoint-outfile', help="output file to write flask endpoint classes")
     parser.add_argument('--dataclass', action='store_true', help="add dataclass decorators for JSON serialization")
     args = parser.parse_args()
 
@@ -50,13 +54,35 @@ def main():
         print('You must supply a url\n', file=sys.stderr)
         parser.print_help()
         return
+    
+    # print(os.getcwd())
+    
+    endpoint_conf = args.flask_endpoint_conf
+    if args.flask_endpoint_outfile:
+        
+        if not endpoint_conf:
+            
+            endpoint_conf =  'endpointgen_conf'    
+        if not os.path.isfile(endpoint_conf):
+            file = open(endpoint_conf,'w+')
+            str = '{"resourceClass" : "Resource",\n'
+            str += '"modelModule" : "models",\n'
+            str += '"decorators" : [],\n'
+            str += '"dbObject" : "db",\n'
+            str += '"addResourceFunction" : "api.add_resource",\n'
+            str += '"apiUrlPrefix" : ""\n}'
+            # print(str)
+            file.write(str)
+            file.close
+            time.sleep(3)
+            
     default_schema = args.default_schema
     if not default_schema:
         default_schema = None  
 
     engine = create_engine(args.url)
     import_dialect_specificities(engine)
-    metadata = MetaData()
+    metadata = MetaData(engine)
     tables = args.tables.split(',') if args.tables else None
     ignore_cols = args.ignore_cols.split(',') if args.ignore_cols else None
     metadata.reflect(engine, args.schema, not args.noviews, tables)
@@ -65,6 +91,11 @@ def main():
                               args.nojoined, args.noinflect, args.nobackrefs,
                               args.flask, ignore_cols, args.noclasses, args.nocomments, args.notables, args.dataclass)
     generator.render(outfile)
+    
+    if args.flask_endpoint_outfile:
+        
+        outfile = open(args.flask_endpoint_outfile,'w+')
+        generator.renderEndpoints(endpoint_conf, outfile)
 
 
 if __name__ == '__main__':
